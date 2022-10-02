@@ -1,0 +1,2 @@
+# hack to make RStudio editor find includes
+PKG_CXXFLAGS=-I/Library/Frameworks/R.framework/Versions/4.1/Resources/library/RcppEigen/include -I/Library/Frameworks/R.framework/Versions/4.1/Resources/library/StanHeaders/include -I/Library/Frameworks/R.framework/Versions/4.1/Resources/library/BH/include

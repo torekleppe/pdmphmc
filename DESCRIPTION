@@ -1,0 +1,16 @@
+Package: pdmphmc
+Type: Package
+Title: Numerical generalized randomized Hamiltonian Monte Carlo
+Version: 0.1.0
+Author: Tore Selland Kleppe
+Maintainer: Tore Selland Kleppe <tore.kleppe@uis.no>
+Description: This package impements Numerical generalized randomized Hamiltonian Monte Carlo (NGRHMC) NGRHMC is a piecewise deteriministic Markov process [More here...]
+License: What license is it under?
+Encoding: UTF-8
+LazyData: true
+Imports: StanHeaders, BH, jsonlite, RcppEigen, foreach
+RoxygenNote: 7.1.2
+Suggests: 
+    rmarkdown,
+    knitr
+VignetteBuilder: knitr

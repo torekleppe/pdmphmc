@@ -1,0 +1,130 @@
+---
+title: "Basic Usage"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{basic-usage}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(pdmphmc)
+```
+
+## Specifying a model
+
+In this example, we consider the simple model with parameters $\tau>0$ and $\mu$:
+$$
+\tau \sim Exp(1),\; \mu \sim N(0,1),\; y|\mu,\tau \sim N(\mu,\tau^{-1}),
+$$
+where $y$ is observed.  
+
+Models for pdmphmc are specified as a valid c++ struct/class. The model above may be implemented using the following struct (note that sampling is done in $\log(\tau)$ to avoid constraints):
+
+```{cc, echo=TRUE, eval=FALSE}
+using namespace amt;
+struct normalMeanPrec{
+  
+  DATA_DOUBLE(y); // see point 1 below
+  
+  void preProcess(){} // see point 2 below 
+  
+  
+  // the following function defines the actual probability
+  // distribution to sample from, see point 3 below
+  template < class varType, class tensorType, bool storeNames>
+    void operator()(amt::amtModel<varType,tensorType,storeNames> &model__){ 
+      
+      // the parameters and latent variables to be sampled
+      // see point 4 below
+      PARAMETER_SCALAR(logtau,1.0); // log-precision
+      PARAMETER_SCALAR(mu); // mean
+      
+      // prior on logtau so that exp(logtau) has an  
+      // exponential distribution with expectation 1.0
+      model__+=expGamma_ld(logtau,1.0,1.0);
+      
+      // standard normal prior on mu
+      model__+=normal_ld(mu,0.0,1.0);
+
+      // likelihood  
+      varType obsSD = Exp(-0.5*logtau); // see point 5 below 
+      model__+=normal_ld(y,mu,obsSD); // (note sd and not variance) 
+      
+      // generated quantities, see point 6 below
+      model__.generated(exp(doubleValue(logtau)),"tau");
+      model__.generated(doubleValue(mu),"mu_gen");
+      
+    }// end of operator()
+}; // end of struct
+```
+
+As indicated in the above code, several lines require additional comments
+
+* Point 1: pdmphmc has facilities for reading data from R. The provided code indicates that the model should be run with a single floating point data point y, stored as a double field within the struct. Functionality for other data types (vectors, matrices, integer) are also implemented.
+
+* Point 2: After data are read from R, but before any sampling happens, preProcess() is run. This is useful e.g. for making transformed data etc.
+
+* Point 3: The model struct should provide an operator() with this particular signature. The class template amtModel is used in several regards, e.g. keeping track of names of sampled variables, the target log-density kernel and so on. 
+
+* Point 4: The sampled quantities, typically parameters and latent variables are defined using PARAMETER_SCALAR(name) or PARAMETER_VECTOR(name,size). The optional last argument gives the initial value for this parameter, e.g. sampling will start at logtau=1.0
+
+* Point 5: Variables which are functions of sampled quantites should be of type template varType. (varType is either the Stan ADtype when only gradients of the log-target are required, or amtVar type if an automatic
+metric tensor is computed).
+
+* Point 6: It is often the case that one wish to obtain chains of some transformation of the sampled parameter. Such values should be specified using the generated() function.
+
+## Building and running the model
+
+Before running the model, the model must be built. Essentially, the build() function compiles a stand-alone binary program. 
+
+```{r, echo=TRUE}
+model <- pdmphmc::build(model.file=system.file('examples/normalMeanPrec.cpp', package = "pdmphmc"),
+               model.class.name = "normalMeanPrec")
+```
+
+Then, lets run the model for $y=1.0$:
+
+```{r, echo=TRUE}
+y <- 1.0
+out <- run(model,data=list(y=y))
+```
+
+The samples generated are now in object out
+
+## Accessing and critiquing output
+
+Basic summaries (based on rstan::monitor() )
+
+```{r, echo=TRUE}
+m<-getMonitor(out)
+mi<-getIntMonitor(out)
+```
+
+Notice, getIntMontior() returns a summary of integrated samples, which are typically more precise estimates of posterior averages (note same mean, but smaller standard deviation). These averages are only computed for the generated quantities.
+
+Trace plots:
+
+```{r, echo=TRUE}
+trace.plot(out,"logtau")
+trace.plot.int(out,"mu_gen")
+```
+
+ACF plots:
+
+```{r, echo=TRUE}
+#acf.plot(out,"logtau")
+#acf.plot.int(out,"mu_gen")
+```
+
+
+
+
+
