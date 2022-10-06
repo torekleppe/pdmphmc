@@ -67,4 +67,10 @@ extern amtData dta__;
 #define PARAMETER_MATRIX(name,dim1,dim2,...) Eigen::Matrix<varType,Eigen::Dynamic,Eigen::Dynamic> name = model__.parameterMatrix(#name,dim1,dim2,##__VA_ARGS__)
 
 
+#define _STRIFY(arg) #arg
+#define _SPD_INT_NAME_STR(name) _STRIFY(name ## _internal)
+#define _SPD_INT_NAME(name) name ## _internal
+#define PARAMETER_SPD_MATRIX(name,dim,...) Eigen::Matrix<varType,Eigen::Dynamic,1> _SPD_INT_NAME(name) = model__.parameterVector(_SPD_INT_NAME_STR(name),(dim*(dim+1))/2,##__VA_ARGS__);\
+   SPDmatrix<varType> name(dim,_SPD_INT_NAME(name) )
+
 #endif

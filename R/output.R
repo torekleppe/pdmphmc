@@ -235,3 +235,29 @@ get_CPU_time<-function(object){
   colnames(ret) <- c("warmup","sampling")
   return(ret)
 }
+
+
+
+
+
+setMethod(f="show",
+          signature = "run-output",
+          definition = function(object){
+            m <- getMonitor(object,print=FALSE)[[1]]
+            df.m <- data.frame(m$mean,m$se_mean,m$sd,m$n_eff,m$Rhat)
+            rownames(df.m) <- rownames(m)
+            colnames(df.m) <- c("mean","se_mean","sd","n_eff","Rhat")
+            mi <- getIntMonitor(object,print=FALSE)[[1]]
+            df.mi <- data.frame(mi$mean,mi$se_mean,mi$n_eff,mi$Rhat)
+            rownames(df.mi) <- rownames(mi)
+            colnames(df.mi) <- c("estimate","se_estimate","n_eff","Rhat")
+            message(paste0("run output for model: ",object@build@model.name))
+            message(paste0("# of chains : ",object@chains))
+            message("Summary based on discrete samples:")
+            print(round(df.m,digits = 3))
+            message("summary based on integrated samples:")
+            print(round(df.mi,digits = 3))
+            message("NOTE: integrated samples do NOT reflect the complete target distibution, only indicated moments with respect to the target distribution")
+            return(0)
+          })
+

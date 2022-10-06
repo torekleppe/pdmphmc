@@ -265,6 +265,33 @@ public:
   }
 };
 
+template <>
+class normal_ld<Eigen::VectorXd,amtVar,amtVar>{
+  const Eigen::VectorXd* arg_;
+  const amtVar* mean_;
+  const amtVar* sd_;
+  const stan::math::var prec_;
+  const size_t N_;
+public:
+  normal_ld(const Eigen::VectorXd& arg,
+            const amtVar& mean,
+            const amtVar& sd) : arg_(&arg), mean_(&mean), sd_(&sd), prec_(1.0/stan::math::square(sd.value())), N_(arg.size()) {}
+  template <class tenPtrType>
+  inline stan::math::var operator()(tenPtrType tensor) const{
+
+
+      sparseVec::syr((*mean_).Jac_,
+                     static_cast<double>(N_)*prec_,
+                     tensor);
+
+    sparseVec::syr(sd_->Jac_,
+                   static_cast<double>(2*N_)*prec_,
+                   tensor);
+    return(stan::math::normal_lpdf(*arg_,mean_->value(),sd_->value()));
+  }
+};
+
+
 
 template <>
 class normal_ld<Eigen::Matrix<amtVar,Eigen::Dynamic,1>,double,amtVar>{
@@ -429,6 +456,17 @@ class normal_ld<Eigen::VectorXd,Eigen::Matrix<stan::math::var,Eigen::Dynamic,1>,
 public:
   normal_ld(const Eigen::VectorXd& arg,
             const Eigen::Matrix<stan::math::var,Eigen::Dynamic,1>& mean,
+            const stan::math::var& sd) : lpdf_(stan::math::normal_lpdf(arg,mean,sd)) {}
+  template <class tenPtrType>
+  inline stan::math::var operator()(tenPtrType tensor) const {return(lpdf_);}
+};
+
+template<>
+class normal_ld<Eigen::VectorXd,stan::math::var,stan::math::var>{
+  const stan::math::var lpdf_;
+public:
+  normal_ld(const Eigen::VectorXd& arg,
+            const stan::math::var& mean,
             const stan::math::var& sd) : lpdf_(stan::math::normal_lpdf(arg,mean,sd)) {}
   template <class tenPtrType>
   inline stan::math::var operator()(tenPtrType tensor) const {return(lpdf_);}

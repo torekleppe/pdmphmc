@@ -401,6 +401,8 @@ public:
     }
   }
 
+
+
   inline void generated(const stan::math::var& value,
                         const std::string& name = ""){
     generated(value.val(),name);
@@ -409,6 +411,13 @@ public:
                         const std::string& name = ""){
     generated(value.value().val(),name);
   }
+
+  inline void generated(const Eigen::Matrix<stan::math::var,Eigen::Dynamic,1>& value,
+                        const std::string& name = ""){generated(asDouble(value),name); }
+  inline void generated(const Eigen::Matrix<amt::amtVar,Eigen::Dynamic,1>& value,
+                        const std::string& name = ""){generated(asDouble(value),name); }
+
+
   template <class T>
   inline void generated(const SPDmatrix<T>& P,
                         const std::string& name = "SPDmatrix"){
