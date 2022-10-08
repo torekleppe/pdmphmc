@@ -56,7 +56,7 @@
  *
  */
 
-#include "amt.hpp"
+#include "amt/amt.hpp"
 #include "fast_spec_funs.hpp"
 
 /*

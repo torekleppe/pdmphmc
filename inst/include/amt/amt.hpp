@@ -40,6 +40,7 @@
 
 // multivariate distributions
 #include "amtMultiNormalPrec.hpp" // unrestricted precsison
+#include "amtMultiNormalCov.hpp" // unrestriced covariance
 #include "amtNormalRW1.hpp"
 #include "amtNormalAR1.hpp"
 

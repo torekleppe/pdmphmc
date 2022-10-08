@@ -170,6 +170,36 @@ struct amtReturnType4<stan::math::var,stan::math::var,stan::math::var,stan::math
   typedef stan::math::var type;
 };
 
+
+template <class Type1, class Type2>
+struct amtNumType2{
+  typedef double type;
+};
+template<>
+struct amtNumType2<double,stan::math::var>{
+  typedef stan::math::var type;
+};
+template<>
+struct amtNumType2<stan::math::var,double>{
+  typedef stan::math::var type;
+};
+template<>
+struct amtNumType2<stan::math::var,stan::math::var>{
+  typedef stan::math::var type;
+};
+template<>
+struct amtNumType2<stan::math::var,amt::amtVar>{
+  typedef stan::math::var type;
+};
+template<>
+struct amtNumType2<amt::amtVar,stan::math::var>{
+  typedef stan::math::var type;
+};
+template<>
+struct amtNumType2<amt::amtVar,amt::amtVar>{
+  typedef stan::math::var type;
+};
+
 } // namespace amt
 /*
  namespace Eigen {
