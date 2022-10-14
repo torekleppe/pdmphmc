@@ -188,6 +188,14 @@ struct amtNumType2<stan::math::var,stan::math::var>{
   typedef stan::math::var type;
 };
 template<>
+struct amtNumType2<double,amt::amtVar>{
+  typedef stan::math::var type;
+};
+template<>
+struct amtNumType2<amt::amtVar,double>{
+  typedef stan::math::var type;
+};
+template<>
 struct amtNumType2<stan::math::var,amt::amtVar>{
   typedef stan::math::var type;
 };
@@ -199,6 +207,19 @@ template<>
 struct amtNumType2<amt::amtVar,amt::amtVar>{
   typedef stan::math::var type;
 };
+
+
+template <class T1>
+class AMT_NOT_IMPLEMENTED_ERROR__CONTACT_DEVELOPER_1;
+
+template <class T1,class T2>
+class AMT_NOT_IMPLEMENTED_ERROR__CONTACT_DEVELOPER_2;
+
+template <class T1,class T2,class T3>
+class AMT_NOT_IMPLEMENTED_ERROR__CONTACT_DEVELOPER_3;
+
+template <class T1,class T2,class T3,class T4>
+class AMT_NOT_IMPLEMENTED_ERROR__CONTACT_DEVELOPER_4;
 
 } // namespace amt
 /*

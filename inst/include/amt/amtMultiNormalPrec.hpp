@@ -36,6 +36,12 @@ stan::math::var
 
   }
 
+/*
+ * Possibly improve these along the lines of amtMultiNormalCov.hpp, where LGC computations are
+ * done in a single templated function.
+ *
+ */
+
 template <class tenPtrType>
 void multi_normal_argORmuFI(const Eigen::Matrix<amtVar,Eigen::Dynamic,1>* argORmu,
                             const SPDmatrix<amtVar>* P,
@@ -161,8 +167,13 @@ class multi_normal_prec_ld{
 public:
   multi_normal_prec_ld(const Eigen::Matrix<argType,Eigen::Dynamic,1>& arg,
                        const Eigen::Matrix<muType,Eigen::Dynamic,1>& mu,
-                       const SPDmatrix<precType>& Prec) {}
-
+                       const SPDmatrix<precType>& Prec) {
+    AMT_NOT_IMPLEMENTED_ERROR__CONTACT_DEVELOPER_3<argType,muType,precType> dummy;
+  }
+  template <class tenPtrType>
+  inline stan::math::var operator()(tenPtrType tensor) const{
+    return(0.0);
+  }
 };
 
 template <>
@@ -329,7 +340,12 @@ class iid_multi_normal_prec_ld{
 public:
   iid_multi_normal_prec_ld(const Eigen::Matrix<argType,Eigen::Dynamic,Eigen::Dynamic>& arg,
                            const Eigen::Matrix<muType,Eigen::Dynamic,1>& mu,
-                           const SPDmatrix<precType>& Prec) {}
+                           const SPDmatrix<precType>& Prec) {
+    AMT_NOT_IMPLEMENTED_ERROR__CONTACT_DEVELOPER_3<argType,muType,precType> dummy;
+  }
+  inline stan::math::var operator()(tenPtrType tensor) const{
+    return(0.0);
+  }
 
 };
 
