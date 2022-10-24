@@ -9,7 +9,7 @@ License: What license is it under?
 Encoding: UTF-8
 LazyData: true
 Imports: StanHeaders, BH, jsonlite, RcppEigen, foreach
-RoxygenNote: 7.1.2
+RoxygenNote: 7.2.1
 Suggests: 
     rmarkdown,
     knitr
