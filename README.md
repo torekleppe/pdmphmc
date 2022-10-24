@@ -1,5 +1,4 @@
-# pdmphmc
-Piecewise deterministic processes using Hamiltonian dynamics
+# pdmphmc : Piecewise deterministic processes using Hamiltonian dynamics
 
 
 
