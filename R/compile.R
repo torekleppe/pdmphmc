@@ -18,7 +18,7 @@
       #}
       #compiler.path <- paste0(strsplit(rtools.path,"usr")[[1]][1],"mingw_64\\bin\\g++.exe")
       #print(compiler.path)
-      flags.ext <- paste0(flags,"-DRCPP_PARALLEL_USE_TBB=1 -Wno-unused-result -Wno-deprecated-declarations -Wno-unknown-pragmas -Wno-ignored-attributes" )
+      flags.ext <- paste0(flags," -DRCPP_PARALLEL_USE_TBB=1 -Wno-unused-result -Wno-deprecated-declarations -Wno-unknown-pragmas -Wno-ignored-attributes" )
       if(file.exists(normalizePath(compiler.path,mustWork=FALSE))){
         return(list(compiler=normalizePath(compiler.path),flags=flags.ext))
       } else {
