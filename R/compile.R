@@ -1,15 +1,22 @@
 
 .default.compiler.info<- function(flags="-O3"){
   if(identical(.Platform$OS.type,"windows")){
-    if(pkgbuild::has_build_tools()){
-      rtools.path <- gsub("/","\\",pkgbuild::rtools_path(),fixed=TRUE) # note, this is not the path to the compiler binary!!
+    if(pkgbuild::has_rtools()){
+      full.path <- strsplit(Sys.getenv("PATH"),split=";")[[1]]
+      rtools.paths <- grep("rtools",full.path,ignore.case = TRUE,fixed=TRUE)
+      if(length(rtools.paths)==0) stop("rtools not in path!")
+      rtools.paths <- full.path[rtools.paths]
+      mingw.path <- grep("mingw",rtools.paths,ignore.case = TRUE,fixed=TRUE)
+      if(length(mingw.path)==0) stop("cannot find mingw-directory in path!")
+      compiler.path <- paste0(rtools.path[mingw.path],"\\g++.exe")
+      #rtools.path <- gsub("/","\\",pkgbuild::rtools_path(),fixed=TRUE) # note, this is not the path to the compiler binary!!
       #print(rtools.path)
-      compiler.path <- paste0(strsplit(rtools.path,"usr")[[1]][1],"mingw64\\bin\\g++.exe")
+      #compiler.path <- paste0(strsplit(rtools.path,"usr")[[1]][1],"mingw64\\bin\\g++.exe")
       #print(compiler.path)
-      if(file.exists(normalizePath(compiler.path,mustWork=FALSE))){
-        return(list(compiler=normalizePath(compiler.path),flags=flags))
-      }
-      compiler.path <- paste0(strsplit(rtools.path,"usr")[[1]][1],"mingw_64\\bin\\g++.exe")
+      #if(file.exists(normalizePath(compiler.path,mustWork=FALSE))){
+      #  return(list(compiler=normalizePath(compiler.path),flags=flags))
+      #}
+      #compiler.path <- paste0(strsplit(rtools.path,"usr")[[1]][1],"mingw_64\\bin\\g++.exe")
       #print(compiler.path)
       if(file.exists(normalizePath(compiler.path,mustWork=FALSE))){
         return(list(compiler=normalizePath(compiler.path),flags=flags))
