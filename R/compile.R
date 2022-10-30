@@ -18,7 +18,7 @@
       #}
       #compiler.path <- paste0(strsplit(rtools.path,"usr")[[1]][1],"mingw_64\\bin\\g++.exe")
       #print(compiler.path)
-      flags.ext <- paste0(flags,"-Wno-deprecated-declarations -Wno-ignored-attributes")
+      flags.ext <- paste0(flags,"-Wno-deprecated-declarations -Wno-ignored-attributes" )
       if(file.exists(normalizePath(compiler.path,mustWork=FALSE))){
         return(list(compiler=normalizePath(compiler.path),flags=flags.ext))
       } else {
