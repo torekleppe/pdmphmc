@@ -343,6 +343,7 @@ public:
                            const SPDmatrix<precType>& Prec) {
     AMT_NOT_IMPLEMENTED_ERROR__CONTACT_DEVELOPER_3<argType,muType,precType> dummy;
   }
+  template <class tenPtrType>
   inline stan::math::var operator()(tenPtrType tensor) const{
     return(0.0);
   }
