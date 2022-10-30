@@ -44,6 +44,7 @@
     " -I",normalizePath(system.file('include', package = "StanHeaders")),
     " -I",normalizePath(system.file('include', package = "RcppEigen")),
     " -I",normalizePath(system.file('include', package = "BH")),
+    " -I",normalizePath(system.file('include', package = "RcppParallel")),
     " -I",normalizePath(system.file('include', package = "RcppProgress")),
     " -I",normalizePath(system.file('include', package = "pdmphmc"))
   )
