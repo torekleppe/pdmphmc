@@ -8,7 +8,7 @@
       rtools.paths <- full.path[rtools.paths]
       mingw.path <- grep("mingw",rtools.paths,ignore.case = TRUE,fixed=TRUE)
       if(length(mingw.path)==0) stop("cannot find mingw-directory in path!")
-      compiler.path <- paste0(rtools.path[mingw.path],"\\g++.exe")
+      compiler.path <- paste0(rtools.paths[mingw.path],"\\g++.exe")
       #rtools.path <- gsub("/","\\",pkgbuild::rtools_path(),fixed=TRUE) # note, this is not the path to the compiler binary!!
       #print(rtools.path)
       #compiler.path <- paste0(strsplit(rtools.path,"usr")[[1]][1],"mingw64\\bin\\g++.exe")
