@@ -8,7 +8,7 @@ Description: This package impements Numerical generalized randomized Hamiltonian
 License: What license is it under?
 Encoding: UTF-8
 LazyData: true
-Imports: StanHeaders, BH, jsonlite, RcppEigen, foreach, RcppProgress
+Imports: StanHeaders, BH, jsonlite, RcppEigen, foreach, RcppProgress, RcppParallel
 RoxygenNote: 7.2.1
 Suggests: 
     rmarkdown,
