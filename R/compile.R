@@ -17,9 +17,10 @@
       #  return(list(compiler=normalizePath(compiler.path),flags=flags))
       #}
       #compiler.path <- paste0(strsplit(rtools.path,"usr")[[1]][1],"mingw_64\\bin\\g++.exe")
-      print(compiler.path)
+      #print(compiler.path)
+      flags.ext <- paste0(flags," -wignored-attributes")
       if(file.exists(normalizePath(compiler.path,mustWork=FALSE))){
-        return(list(compiler=normalizePath(compiler.path),flags=flags))
+        return(list(compiler=normalizePath(compiler.path),flags=flags.ext))
       } else {
         stop("unknown rtools directory format")
       }
