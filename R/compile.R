@@ -2,13 +2,16 @@
 .default.compiler.info<- function(flags="-O3"){
   if(identical(.Platform$OS.type,"windows")){
     if(pkgbuild::has_rtools()){
-      full.path <- strsplit(Sys.getenv("PATH"),split=";")[[1]]
-      rtools.paths <- grep("rtools",full.path,ignore.case = TRUE,fixed=TRUE)
-      if(length(rtools.paths)==0) stop("rtools not in path!")
-      rtools.paths <- full.path[rtools.paths]
-      mingw.path <- grep("mingw",rtools.paths,ignore.case = TRUE,fixed=TRUE)
-      if(length(mingw.path)==0) stop("cannot find mingw-directory in path!")
-      compiler.path <- paste0(rtools.paths[mingw.path],"\\g++.exe")
+      #rtools.path <- strsplit(pkgbuild::rtools_path(),"usr")[[1]][1]
+
+
+      #full.path <- strsplit(Sys.getenv("PATH"),split=";")[[1]]
+      #rtools.paths <- grep("rtools",full.path,ignore.case = TRUE,fixed=TRUE)
+      #if(length(rtools.paths)==0) stop("rtools not in path!")
+      #rtools.paths <- full.path[rtools.paths]
+      #mingw.path <- grep("mingw",rtools.paths,ignore.case = TRUE,fixed=TRUE)
+      #if(length(mingw.path)==0) stop("cannot find mingw-directory in path!")
+      #compiler.path <- paste0(rtools.paths[mingw.path],"\\g++.exe")
       #rtools.path <- gsub("/","\\",pkgbuild::rtools_path(),fixed=TRUE) # note, this is not the path to the compiler binary!!
       #print(rtools.path)
       #compiler.path <- paste0(strsplit(rtools.path,"usr")[[1]][1],"mingw64\\bin\\g++.exe")
@@ -19,17 +22,13 @@
       #compiler.path <- paste0(strsplit(rtools.path,"usr")[[1]][1],"mingw_64\\bin\\g++.exe")
       #print(compiler.path)
       flags.ext <- paste0(flags," -DRCPP_PARALLEL_USE_TBB=1 -Wno-unused-result -Wno-deprecated-declarations -Wno-unknown-pragmas -Wno-ignored-attributes" )
-      if(file.exists(normalizePath(compiler.path,mustWork=FALSE))){
-        return(list(compiler=normalizePath(compiler.path),flags=flags.ext))
-      } else {
-        stop("unknown rtools directory format")
-      }
+      return(list(compiler="g++",flags=flags.ext,bld.tools=TRUE))
     } else {
-      stop("requires a working c++ compiler, get the rtools package")
+      stop("requires a working c++ compiler, get the rtools package for your R version")
     }
   } else if(identical(.Platform$OS.type,"unix")) {
     flags.ext <- paste0(flags," -Wno-unknown-pragmas -Wno-deprecated-declarations")
-    return(list(compiler="g++",flags=flags.ext))
+    return(list(compiler="g++",flags=flags.ext,bld.tools=FALSE))
   } else {
     stop("Unknown OS.type")
   }
@@ -60,14 +59,21 @@
                          package.includes," ",
                          include)
 
+  if(compiler.info$bld.tools){
+    ret <- pkgbuild::with_build_tools(ystem2(command=compiler.info$compiler,
+                                      args=compilerArgs,
+                                      stdout = TRUE,
+                                      stderr = TRUE))
+    print(ret)
+  } else {
 
-  ret <- system2(command=compiler.info$compiler,
-                 args=compilerArgs,
-                 stdout = TRUE,
-                 stderr = TRUE)
+    ret <- system2(command=compiler.info$compiler,
+                   args=compilerArgs,
+                   stdout = TRUE,
+                   stderr = TRUE)
 
-  eflag <- attr(ret,"status")
-
+    eflag <- attr(ret,"status")
+  }
   if(is.null(eflag)){
     message("compilation exited successfully")
     return(0L)
