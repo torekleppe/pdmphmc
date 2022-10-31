@@ -7,7 +7,8 @@
 
 
 .check.build <- function(build.object){
-  return(file.exists(build.object@file.name.base))
+  return(file.exists(build.object@file.name.base) ||
+           file.exists(paste0(build.object@file.name.base,".exe")))
 }
 
 #' Build (i.e. parse and compile) a pdmphmc model
