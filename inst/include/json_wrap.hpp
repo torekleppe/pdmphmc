@@ -149,7 +149,9 @@ public:
       }
 
     } else {
-      std::cout << "could not open JSON file" << std::endl;
+
+      throw std::runtime_error("json_wrap : could not open JSON file : " << filename);
+
     }
   }
 
