@@ -60,7 +60,7 @@
                          include)
 
   if(compiler.info$bld.tools){
-    ret <- pkgbuild::with_build_tools(ystem2(command=compiler.info$compiler,
+    ret <- pkgbuild::with_build_tools(system2(command=compiler.info$compiler,
                                       args=compilerArgs,
                                       stdout = TRUE,
                                       stderr = TRUE))
