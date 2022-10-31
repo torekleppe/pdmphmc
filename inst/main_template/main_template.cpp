@@ -26,7 +26,7 @@ int main(int argc, char *argv[]){
   // read data from file
   int dataEflag = dta__.fromFile(fileNameBase+"_data.json");
   if(dataEflag != 0 ) return(dataEflag);
-
+  std::cout << "reading of data done" << std::endl;
 
   // run the preprocess function
   m.preProcess();
@@ -59,6 +59,7 @@ int main(int argc, char *argv[]){
 
 
   json_wrap ctrl(fileNameBase+"_control.json");
+  std::cout << "reading of control done" << std::endl;
 
   /*----------------------------------------------------
    * Work out which parameters to store
