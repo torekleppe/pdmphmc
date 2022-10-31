@@ -60,11 +60,13 @@
                          include)
 
   if(compiler.info$bld.tools){
-    ret <- pkgbuild::with_build_tools(system2(command=compiler.info$compiler,
+    pkgbuild::with_build_tools(ret <- system2(command=compiler.info$compiler,
                                       args=compilerArgs,
                                       stdout = TRUE,
                                       stderr = TRUE))
     print(ret)
+    eflag <- attr(ret,"status")
+    print(eflag)
   } else {
 
     ret <- system2(command=compiler.info$compiler,
