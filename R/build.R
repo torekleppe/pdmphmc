@@ -85,9 +85,9 @@ build <- function(model.file,
 
   # note macro FILE_NAME_BASE__ must have appropriate slashs for both unix and windows
   fnb4macro <- normalizePath(out@file.name.base,winslash="/",mustWork=FALSE)
-  if(identical(.Platform$OS.type,"windows")){
-    fnb4macro <- gsub("/","\\\\",fnb4macro)
-  }
+  #if(identical(.Platform$OS.type,"windows")){
+#    fnb4macro <- gsub("/","\\\\",fnb4macro)
+ #}
   header <- paste0(header," #define FILE_NAME_BASE__ \"",fnb4macro,"\" \n")
 
   cat(header,file=normalizePath(paste0(work.folder,"/___model_typedefs.hpp"),mustWork = FALSE),append = FALSE)
