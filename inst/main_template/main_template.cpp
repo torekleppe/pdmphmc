@@ -14,16 +14,18 @@ amtData dta__;
 
 
 int main(int argc, char *argv[]){
-  // common
+  // common name for input/output files
+  std::string fileNameBase = FILE_NAME_BASE__;
+  /*
   std::string fileNameBase(argv[0]);
-  // remove .exe in case of windows
+   // remove .exe in case of windows
   if(fileNameBase.length()>3){
-  std::string last4 = fileNameBase.substr(fileNameBase.length()-4);
-  if(last4.compare(".exe")==0 || last4.compare(".EXE")==0){
-    fileNameBase = fileNameBase.substr(0,fileNameBase.length()-4);
-  }
-  }
-  std::cout << "fileNameBase : " << fileNameBase << std::endl;
+    std::string last4 = fileNameBase.substr(fileNameBase.length()-4);
+    if(last4.compare(".exe")==0 || last4.compare(".EXE")==0){
+      fileNameBase = fileNameBase.substr(0,fileNameBase.length()-4);
+    }
+  }*/
+  //std::cout << "fileNameBase : " << fileNameBase << std::endl;
 
   // chain id from command line
   int chain_id = 0;
@@ -137,9 +139,9 @@ int main(int argc, char *argv[]){
 
   if(ctrl.getNumeric("lambda",tmp_d)) sampler.setProperty("lambda",tmp_d);
 
-/*--------------------------------------------------------------------
- *  work out initial configuration
- *-------------------------------------------------------------------*/
+  /*--------------------------------------------------------------------
+   *  work out initial configuration
+   *-------------------------------------------------------------------*/
 
 
   Eigen::VectorXd q0(dim);

@@ -83,7 +83,7 @@ build <- function(model.file,
     header <- paste0(header," typedef stan::math::var varType;\n")
   }
 
-
+  header <- paste0(header," #define FILE_NAME_BASE__ \"",out@file.name.base,"\" \n")
 
   cat(header,file=normalizePath(paste0(work.folder,"/___model_typedefs.hpp"),mustWork = FALSE),append = FALSE)
   out@compiler.flag <- .compileCpp(out,compiler.info,include)
