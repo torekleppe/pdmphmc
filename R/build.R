@@ -82,8 +82,11 @@ build <- function(model.file,
   } else {
     header <- paste0(header," typedef stan::math::var varType;\n")
   }
-  # note macro FILE_NAME_BASE__ without quotes to avoid problems in windows
-  header <- paste0(header," #define FILE_NAME_BASE__ ",out@file.name.base," \n")
+
+  # note macro FILE_NAME_BASE__ must have appropriate slashs for both unix and windows
+  header <- paste0(header," #define FILE_NAME_BASE__ \"",
+    normalizePath(out@file.name.base,winslash="\\",mustWork=FALSE),
+    "\" \n")
 
   cat(header,file=normalizePath(paste0(work.folder,"/___model_typedefs.hpp"),mustWork = FALSE),append = FALSE)
   out@compiler.flag <- .compileCpp(out,compiler.info,include)
