@@ -15,7 +15,7 @@ amtData dta__;
 
 int main(int argc, char *argv[]){
   // common name for input/output files
-  std::string fileNameBase = FILE_NAME_BASE__;
+  std::string fileNameBase = "dfd"; //FILE_NAME_BASE__;
   /*
   std::string fileNameBase(argv[0]);
    // remove .exe in case of windows
