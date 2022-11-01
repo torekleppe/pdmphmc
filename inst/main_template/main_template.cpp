@@ -3,6 +3,7 @@
 
 #define _PDMPHMC_DEBUG_
 
+
 // utilities for keeping track of data
 amtData dta__;
 
@@ -13,9 +14,11 @@ amtData dta__;
 #include "___model_typedefs.hpp"
 
 
+#define STRINGI__(s) #s
+
 int main(int argc, char *argv[]){
   // common name for input/output files
-  std::string fileNameBase = "dfd"; //FILE_NAME_BASE__;
+  std::string fileNameBase = STRINGI__(FILE_NAME_BASE__);
   /*
   std::string fileNameBase(argv[0]);
    // remove .exe in case of windows
@@ -25,7 +28,7 @@ int main(int argc, char *argv[]){
       fileNameBase = fileNameBase.substr(0,fileNameBase.length()-4);
     }
   }*/
-  //std::cout << "fileNameBase : " << fileNameBase << std::endl;
+  std::cout << "fileNameBase : " << fileNameBase << std::endl;
 
   // chain id from command line
   int chain_id = 0;
