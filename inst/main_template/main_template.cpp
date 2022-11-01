@@ -13,12 +13,12 @@ amtData dta__;
 // include typedefs for sampler settings
 #include "___model_typedefs.hpp"
 
-
+#define STRINGIFY__(s) STRINGI__(s)
 #define STRINGI__(s) #s
 
 int main(int argc, char *argv[]){
   // common name for input/output files
-  std::string fileNameBase = STRINGI__(FILE_NAME_BASE__);
+  std::string fileNameBase = STRINGIFY__( FILE_NAME_BASE__ );
   /*
   std::string fileNameBase(argv[0]);
    // remove .exe in case of windows
