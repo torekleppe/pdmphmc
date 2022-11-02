@@ -7,8 +7,8 @@ This is the development version of the R-package pdmphmc, which is a re-implemen
 
 More verbose documentation is available at [https://torekleppe.github.io/pdmphmc.doc/]
 
-The R-package has currently been tested on mac (using the clang compiler and R 4.x), linux (using native gcc and R 4.x) 
-Windows testing is so far not done (R 4.x and using the mingw64 compiler that ships with Rtools4.0). 
+The R-package has currently been tested on mac (using the clang compiler and several of R 4.x), linux (using native gcc and R 4.x). 
+Windows testing is done using R 4.0 and using the mingw64 compiler that ships with Rtools4.0. So far, the package does not work with R 4.2/Rtools4.2. 
 
 In general, it requires that you have a working installation of R>=4.0.0 and **a working installation of the R-package rstan**.
 
