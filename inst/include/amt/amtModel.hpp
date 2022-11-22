@@ -352,7 +352,12 @@ public:
       return(ret);
     }
   //inline void operator+=(const double increment){target_+= increment;}
-  //inline void operator+=(const stan::math::var& increment){target_+= increment;}
+  inline void operator+=(const stan::math::var& increment){
+    if constexpr(std::is_same_v<amtVar,varType>){
+      std::cout << "WARNING: incrementing target without *_ld()" << std::endl;
+    }
+    target_+= increment;
+  }
   /*
    inline void operator+=(const amtTripletReturn& increment){
    target_ += increment.lp_;
