@@ -14,8 +14,9 @@
 
 //#define __DEBUG__
 
+
 template <class _ode_type_,
-          template<typename> class _step_type_, // so far not implemented
+          template<typename> class _step_type_,
           class _diagnostics_type_>
 class rungeKuttaSolver{
 private:
@@ -351,8 +352,11 @@ public:
       //
       // check if events occurred
       //
-      eventTime = eventGridSearch(whichEventFirst);
-
+      if(step_.hasEventRootSolver()){
+        eventTime = step_.eventRootSolver(whichEventFirst);
+      } else {
+        eventTime = eventGridSearch(whichEventFirst);
+      }
       // store dense output
       nextSampleTime = static_cast<double>(sample_count_)*sample_interval_;
       if(dimGenerated_>0) genIntLast_.setZero();

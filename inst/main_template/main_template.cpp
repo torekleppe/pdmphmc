@@ -64,7 +64,7 @@ int main(int argc, char *argv[]){
              modelSpec__,
              varType,
              rungeKuttaSolver,
-             RKDP54,
+             RKstepType__,
              metricTensorType__,
              TMtype,
              constantLambda,

@@ -83,6 +83,7 @@ public:
 
   RKDP54() : absTol_(1.0e-4), relTol_(1.0e-4), eps_(1.0) {}
   inline int odeOrder() const {return 1;}
+  constexpr bool hasEventRootSolver() const {return false;}
   inline double errorOrderHigh() const {return(5.0);}
   inline void setup(_ode_type_ &ode){
     ode_ = &ode;
@@ -387,6 +388,12 @@ public:
     out = generated_*denseDotWts(t/eps_);
   }
 
+  inline double eventRootSolver(int &whichDim){
+    std::cout << "EventRootSolver should not be called!" << std::endl;
+    throw(567);
+    whichDim = -1;
+    return(eps_);
+  }
 
 };
 

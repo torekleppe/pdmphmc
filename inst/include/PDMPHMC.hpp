@@ -85,6 +85,7 @@
 
 #include "RKDP54.hpp"
 #include "RKNDP64.hpp"
+#include "RKBS32.hpp"
 #include "RungeKutta.hpp"
 
 
