@@ -284,7 +284,7 @@ public:
       tmpVecRoot_ = ((eventRootInt_-eventRootIntLow_).array().abs()/tmpVecRoot_.array()).matrix();
 
       double stepErrRoot = tmpVecRoot_.maxCoeff();
-      /*
+
       if(stepErr_ < stepErrRoot){
         //std::cout << "integration error dominated by root equation" << std::endl;
         stepErr_ = stepErrRoot;

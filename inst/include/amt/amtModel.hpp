@@ -51,8 +51,11 @@ class amtModel{
   size_t generatedCount_;
   size_t emptyNameCount_;
 
-
-
+  size_t linConstrCount_;
+  size_t nonLinConstrCount_;
+  Eigen::Matrix<stan::math::var,Eigen::Dynamic,1> linConstr_;
+  Eigen::Matrix<stan::math::var,Eigen::Dynamic,1> nonLinConstr_;
+  Eigen::MatrixXd linConstrJac_;
 
   inline void reset(){
     if constexpr (storeNames){
@@ -65,7 +68,8 @@ class amtModel{
     target_ = 0.0;
     parCount_ = 0;
     generatedCount_ = 0;
-
+    linConstrCount_ = 0;
+    nonLinConstrCount_ = 0;
   }
   void expandParNames(){
     epn_.clear();
@@ -111,8 +115,8 @@ public:
   std::vector<std::string> egn_;
 
 
-  amtModel() :  parCount_(0), tenPtr_(NULL), target_(0.0), generatedCount_(0), emptyNameCount_(0) {}
-  amtModel(tensorType& tensor) : parCount_(0), tenPtr_(&tensor), target_(0.0), generatedCount_(0), emptyNameCount_(0) {}
+  amtModel() :  parCount_(0), tenPtr_(NULL), target_(0.0), generatedCount_(0), emptyNameCount_(0), linConstrCount_(0), nonLinConstrCount_(0) {}
+  amtModel(tensorType& tensor) : parCount_(0), tenPtr_(&tensor), target_(0.0), generatedCount_(0), emptyNameCount_(0), linConstrCount_(0), nonLinConstrCount_(0) {}
 
   inline size_t dim() const {return parCount_;}
   inline size_t dimGen() const {return generatedCount_;}
@@ -250,6 +254,58 @@ public:
       throw(1);
     }
     stan::math::recover_memory();
+  }
+
+  inline void linConstraintJacobian(){
+    if(linConstrCount_>0) linConstrJac_.resize(par_.size(),linConstrCount_);
+    for(size_t i=0; i<linConstrCount_;i++){
+      linConstr_.coeffRef(i).grad();
+      for(size_t j=0; j<par_.size();j++) linConstrJac_.coeffRef(j,i) = par_.coeff(j).adj();
+      stan::math::set_zero_all_adjoints();
+    }
+    std::cout << "linConstr jac \n" << linConstrJac_ << std::endl;
+  }
+
+
+  inline void checkLinConstraintJacobian(){
+    if(linConstrCount_>0){
+      double dev;
+      for(size_t i=0; i<linConstrCount_;i++){
+        linConstr_.coeffRef(i).grad();
+        for(size_t j=0; j<par_.size();j++){
+          dev = linConstrJac_(j,i)-par_.coeff(j).adj();
+          if(fabs(dev)/(1.0e-12 + 1.0e-12*linConstrJac_(j,i))>1.0){
+            std::cout << "linConstraint # " << i+1 << " is not linear, use nonlinConstraint() instead" << std::endl;
+            throw(765);
+          }
+        }
+        stan::math::set_zero_all_adjoints();
+      }
+      std::cout << "Linear constraints OK" << std::endl;
+    }
+  }
+
+  inline void linConstraint(const varType& constr){
+    linConstrCount_++;
+    if(linConstr_.size()<linConstrCount_) linConstr_.conservativeResize(linConstrCount_);
+    if constexpr(std::is_same_v<amtVar,varType>){
+      std::cout << "constraints not implemented for varType!=stan::math::var" << std::endl;
+      throw(1);
+    } else {
+      linConstr_.coeffRef(linConstrCount_-1) = constr;
+    }
+  }
+
+
+  inline void nonlinConstraint(const varType& constr){
+    nonLinConstrCount_++;
+    if(nonLinConstr_.size()<nonLinConstrCount_) nonLinConstr_.conservativeResize(nonLinConstrCount_);
+    if constexpr(std::is_same_v<amtVar,varType>){
+      std::cout << "constraints not implemented for varType!=stan::math::var" << std::endl;
+      throw(1);
+    } else {
+      nonLinConstr_.coeffRef(nonLinConstrCount_-1) = constr;
+    }
   }
 
   inline varType parameterScalar(const std::string& parName,
@@ -458,7 +514,7 @@ public:
         } else {
           for(int ii=parFrom_[i];ii<=parTo_[i];ii++){
             std::cout << epn_[ii] << " : " << defaultVals_[ii] << std::endl;
-           }
+          }
         }
       }
     }
@@ -473,7 +529,10 @@ public:
         }
       }
     }
-
+    std::cout << "# linear constraints: " << linConstrCount_ << std::endl;
+    if(linConstrCount_>0) std::cout << linConstr_ << std::endl;
+    std::cout << "# nonlinear constraints: " << nonLinConstrCount_ << std::endl;
+    if(nonLinConstrCount_>0) std::cout << nonLinConstr_ << std::endl;
 
 
   }
