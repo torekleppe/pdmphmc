@@ -2,6 +2,12 @@
 #define _ODEUTILS_HPP_
 
 
+struct rootInfo{
+  int rootType_;
+  int rootDim_;
+};
+
+
 /*
  * representing the state of an ode-system, unifying interface
  * for both first and second order ode-solvers
