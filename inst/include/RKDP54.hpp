@@ -1,6 +1,11 @@
 #ifndef _RKDP54_HPP_
 #define _RKDP54_HPP_
 
+#ifndef __EVENT_SEARCH_GRID_SIZE__
+#define __EVENT_SEARCH_GRID_SIZE__ 20
+#endif
+
+
 /*
  *
  * Runge Kutta based on order 5(4) Dormand/Prince pair
@@ -67,6 +72,92 @@ class RKDP54{
 
   odeState tmpState_,newState_;
 
+  double findEventTime(const int which,
+                       const double leftBound,
+                       const double rightBound,
+                       const double leftFunVal,
+                       const double rightFunVal) {
+    double lb = leftBound;
+    double rb = rightBound;
+    double lf = leftFunVal;
+    double rf = rightFunVal;
+
+    double tb = 0.5*eps_;
+    double dev = denseEventRoot_Level(which,tb);
+    double ddev = denseEventRoot_LevelDot(which,tb);
+    int iter = 0;
+    while(abs(dev)>1.0e-12 && iter<30){
+
+      if(lf*dev>0){
+        lb = tb;
+        lf = dev;
+      } else {
+        rb = tb;
+        rf = dev;
+      }
+
+      tb = tb - dev/ddev;
+      if(tb<=lb || tb>=rb) tb = 0.5*(lb+rb);
+
+      dev = denseEventRoot_Level(which,tb);
+      ddev = denseEventRoot_LevelDot(which,tb);
+      /*
+       std::cout << "tb: " << tb << "  " << dev << std::endl;
+       std::cout << "b: " << lb << "  " << rb << std::endl;
+       std::cout << "f: " << lf << "  " << rf << std::endl;
+       */
+      iter++;
+
+    }
+    if(std::abs(dev)>1.0e-6){
+      std::cout << "Warning: event time could not be determined accurately, dev= " << dev << " sol = " << tb << std::endl;
+    }
+    return(tb);
+
+  }
+
+  Eigen::VectorXd timeGridEvent_;
+  int oldEventDim_;
+  double eventGridSearch(int &whichDim){
+    whichDim = -1;
+    timeGridEvent_.setLinSpaced(__EVENT_SEARCH_GRID_SIZE__,0.0,eps_);
+
+    //std::cout << "gridEventSearch, id = " << id_ << std::endl;
+    double left_val,right_val;
+    int last = timeGridEvent_.size()-1;
+
+    double ret = eps_;
+    double t_this;
+    for(int d = 0; d<dimEvent_;d++){ // over dimensions
+      left_val = denseEventRoot_Level(d,0.0);
+
+
+      for(int i = 1; i<=last;i++){
+        right_val = denseEventRoot_Level(d,timeGridEvent_.coeff(i));
+
+        if(right_val*left_val<0.0){ // root in this interval
+          last = i;
+          t_this = findEventTime(d,timeGridEvent_(i-1),timeGridEvent_(i),left_val,right_val);
+
+          if(t_this<ret){ // first root found
+            ret = t_this;
+            whichDim = d;
+            //std::cout << " best so far at " << ret << " d = " << whichDim << std::endl;
+          }
+          break;
+
+        }
+        left_val = right_val;
+      }
+    }
+
+
+    oldEventDim_ = whichDim;
+    return(ret);
+  }
+
+
+
 public:
 
   double absTol_;
@@ -83,7 +174,7 @@ public:
 
   RKDP54() : absTol_(1.0e-4), relTol_(1.0e-4), eps_(1.0) {}
   inline int odeOrder() const {return 1;}
-  constexpr bool hasEventRootSolver() const {return false;}
+  //constexpr bool hasEventRootSolver() const {return true;}
   inline double errorOrderHigh() const {return(5.0);}
   inline void setup(_ode_type_ &ode){
     ode_ = &ode;
@@ -107,6 +198,12 @@ public:
 
   }
 
+  rootInfo eventRootSolver(){
+    int whichEventFirst;
+    double time = eventGridSearch(whichEventFirst);
+
+    return(rootInfo(time,0,whichEventFirst));
+  }
 
 
   inline odeState lastState() const {return(odeState(ys_.col(6)));}
@@ -259,8 +356,9 @@ public:
   }
 
 
-  inline bool event(const int whichEvent,
-                    const double eventTime){
+  inline bool event(const rootInfo& rootOut){
+    int whichEvent = rootOut.rootDim_;
+    double eventTime = rootOut.rootTime_;
     // dense state before event
     tmpState_.y = ys_.col(0) + (force_*denseWts(eventTime/eps_));
     force_tmp_ = force_*denseDotWts(eventTime/eps_);
@@ -387,14 +485,14 @@ public:
                                    Eigen::Ref<Eigen::VectorXd> out) const {
     out = generated_*denseDotWts(t/eps_);
   }
-
+/*
   inline double eventRootSolver(int &whichDim){
     std::cout << "EventRootSolver should not be called!" << std::endl;
     throw(567);
     whichDim = -1;
     return(eps_);
   }
-
+*/
 };
 
 

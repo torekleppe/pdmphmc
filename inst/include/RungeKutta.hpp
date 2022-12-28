@@ -8,9 +8,6 @@
  */
 
 #define __INTEGRATOR_DIAG_BLOCK_SIZE_ 1000
-#ifndef __EVENT_SEARCH_GRID_SIZE__
-#define __EVENT_SEARCH_GRID_SIZE__ 20
-#endif
 
 //#define __DEBUG__
 
@@ -79,7 +76,7 @@ private:
   int id_;
   std::string printPrefix_;
 
-
+/*
   double findEventTime(const int which,
                        const double leftBound,
                        const double rightBound,
@@ -109,11 +106,7 @@ private:
 
       dev = step_.denseEventRoot_Level(which,tb);
       ddev = step_.denseEventRoot_LevelDot(which,tb);
-      /*
-       std::cout << "tb: " << tb << "  " << dev << std::endl;
-       std::cout << "b: " << lb << "  " << rb << std::endl;
-       std::cout << "f: " << lf << "  " << rf << std::endl;
-       */
+
       iter++;
 
     }
@@ -123,6 +116,8 @@ private:
     return(tb);
 
   }
+ */
+
   /*
    double findEventTime(const int which){
    return(findEventTime(which,0.0,eps_,events_(which,0),events_(which,6)));
@@ -132,6 +127,7 @@ private:
   /*
    * Check for events on a grid
    */
+/*
   Eigen::VectorXd timeGridEvent_;
   int oldEventDim_;
   double eventGridSearch(int &whichDim){
@@ -172,7 +168,7 @@ private:
     return(ret);
   }
 
-
+*/
 
 public:
 
@@ -264,12 +260,12 @@ public:
 
 
     // assorted storage
-    double eventTime;
-    int whichEventFirst;
+    //double eventTime;
+    //int whichEventFirst;
     double sampleStepTime;
     eventTimes_.setZero();
     double nextSampleTime;
-
+    rootInfo rootOut;
     step_.t_right_ = 0.0;
     done = false;
 
@@ -281,7 +277,7 @@ public:
     sample_interval_ = Tmax/static_cast<double>(nsamples);
     sample_count_ = 0;
     Tmax_ = Tmax;
-    oldEventDim_ = -1;
+    //oldEventDim_ = -1;
 
 
 
@@ -352,16 +348,16 @@ public:
       //
       // check if events occurred
       //
-      if(step_.hasEventRootSolver()){
-        eventTime = step_.eventRootSolver(whichEventFirst);
-      } else {
-        eventTime = eventGridSearch(whichEventFirst);
-      }
+      //if(step_.hasEventRootSolver()){
+      rootOut = step_.eventRootSolver();
+      //} else {
+      //  eventTime = eventGridSearch(whichEventFirst);
+      //}
       // store dense output
       nextSampleTime = static_cast<double>(sample_count_)*sample_interval_;
       if(dimGenerated_>0) genIntLast_.setZero();
 
-      while(step_.t_left_ + eventTime >= nextSampleTime){
+      while(step_.t_left_ + rootOut.rootTime_ >= nextSampleTime){
         sampleStepTime = nextSampleTime-step_.t_left_;
 
 #ifdef __RK_DO_NOT_TRANSFORM_STORE_PARS__
@@ -390,44 +386,45 @@ public:
       //std::cout << "dense sampling part 1 done" << std::endl;
       // reminder of step
       if(dimGenerated_>0){
-        if(whichEventFirst==-1){
+        if(rootOut.rootDim_==-1){
           genIntPrevSteps_ += step_.genIntStep_ - genIntLast_;
         } else {
           //genIntPrevSteps_ += generated_*denseWts(eventTime/eps_) - genIntLast_;
-          genIntPrevSteps_ += step_.denseGenerated_Int(eventTime) - genIntLast_;
+          genIntPrevSteps_ += step_.denseGenerated_Int(rootOut.rootTime_) - genIntLast_;
         }
       }
       // end dense output
 
 
       // pass the finished step to the ODE in order to collect diagnostics info etc
-      (*ode_).push_RK_step(id_,eventTime,step_);
+      (*ode_).push_RK_step(id_,rootOut.rootTime_,step_);
 
       //std::cout << "dense sampling done" << std::endl;
 
       // from now on, modifications of the quantities calculated in the step are done
       // carry out what ever happened at the event
-      if(whichEventFirst != -1 ){
+      if(rootOut.rootDim_ != -1 ){
 
-        if(whichEventFirst==(*ode_).warmupRoot()){
+        if(rootOut.rootTime_==(*ode_).warmupRoot()){
           auto warmup_time = std::chrono::high_resolution_clock::now();
           std::chrono::duration<double> warmup_elapsed = warmup_time-start_time;
           CPUtime_(0) = warmup_elapsed.count();
           std::cout << printPrefix_ <<  " warmup done" << std::endl;
         }
 
-        eventContinue = step_.event(whichEventFirst,eventTime);
+        eventContinue = step_.event(rootOut); //step_.event(whichEventFirst,eventTime);
 
         // store diagonstics info leading to
         (*diagnostics_).push("intID",id_);
         (*diagnostics_).push("timeStart",timeStart);
-        timeStart = step_.t_left_+eventTime;
+        timeStart = step_.t_left_+rootOut.rootTime_;
         (*diagnostics_).push("timeEnd",timeStart);
         (*diagnostics_).push("eps",step_.eps_);
         (*diagnostics_).push("stepErr",step_.stepErr_);
         (*diagnostics_).push("nstep",static_cast<double>(nstep));
         (*diagnostics_).push("nacc",static_cast<double>(nacc));
-        (*diagnostics_).push("eventType",static_cast<double>(whichEventFirst));
+        (*diagnostics_).push("eventType",static_cast<double>(rootOut.rootType_));
+        (*diagnostics_).push("eventDim",static_cast<double>(rootOut.rootDim_));
 
         (*diagnostics_).newRow();
         // prepare next integration leg
@@ -477,7 +474,8 @@ public:
     (*diagnostics_).push("stepErr",step_.stepErr_);
     (*diagnostics_).push("nstep",static_cast<double>(nstep));
     (*diagnostics_).push("nacc",static_cast<double>(nacc));
-    (*diagnostics_).push("eventType",static_cast<double>(whichEventFirst));
+    (*diagnostics_).push("eventType",static_cast<double>(rootOut.rootType_));
+    (*diagnostics_).push("eventDim",static_cast<double>(rootOut.rootDim_));
 
     // timing
     auto endTime = std::chrono::high_resolution_clock::now();

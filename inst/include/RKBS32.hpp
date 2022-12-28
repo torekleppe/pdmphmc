@@ -93,8 +93,8 @@ public:
   inline odeState lastState() const {return(odeState(ys_.col(3)));}
 
 
-  inline double eventRootSolver(int &whichDim){
-    whichDim = -1;
+  inline rootInfo eventRootSolver(){
+    int whichDim = -1;
     double ret = eps_;
     /*
     std::cout << "RKBS event solver" << std::endl;
@@ -139,7 +139,7 @@ public:
       }
     }
    // std::cout << "rootSolver done, ret = " << ret << " , eps = " << eps_ << " , whichDim = " << whichDim << std::endl;
-    return(ret);
+    return(rootInfo(ret,0,whichDim));
   }
 
   inline void setup(_ode_type_ &ode){
@@ -358,8 +358,9 @@ public:
       generated_.col(3)*levelPoly.coeff(3);
   }
 
-  inline bool event(const int whichEvent,
-                    const double eventTime){
+  inline bool event(const rootInfo& rootOut){
+    int whichEvent = rootOut.rootDim_;
+    double eventTime = rootOut.rootTime_;
     // dense state before event
     Eigen::VectorXd intPoly = calcIntPoly(eventTime);
     tmpState_.y = ys_.col(0)*intPoly.coeff(0) +

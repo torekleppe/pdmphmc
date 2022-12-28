@@ -1,10 +1,16 @@
 #ifndef _ODEUTILS_HPP_
 #define _ODEUTILS_HPP_
 
-
+/*
+ * Unified output for the rootSolver methods of the step
+ *
+ */
 struct rootInfo{
-  int rootType_;
+  double rootTime_;
+  int rootType_; // 0=non-linear, 1=linear
   int rootDim_;
+  rootInfo() {}
+  rootInfo(double rootTime, int rootType, int rootDim) : rootTime_(rootTime), rootType_(rootType), rootDim_(rootDim) {}
 };
 
 
