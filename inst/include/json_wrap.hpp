@@ -31,10 +31,10 @@ public:
 
     f_.append("\""+fieldName+"\":[");
     if(val.size()>0){
-    for(int i=0;i<val.size()-1;i++){
-      f_.append("\""+val[i]+"\",");
-    }
-    f_.append("\""+val[val.size()-1]+"\"]");
+      for(int i=0;i<val.size()-1;i++){
+        f_.append("\""+val[i]+"\",");
+      }
+      f_.append("\""+val[val.size()-1]+"\"]");
     } else {
       f_.append(" ]");
     }
@@ -45,14 +45,35 @@ public:
     std::ostringstream tmp;
     f_.append("\""+fieldName+"\":[");
     if(val.size()>0){
-    for(int i=0;i<val.size()-1;i++){
-      tmp << std::setprecision(14) << val(i) << ",";
-    }
-    tmp << std::setprecision(14) << val(val.size()-1) << "]";
-    f_.append(tmp.str());
+      for(int i=0;i<val.size()-1;i++){
+        tmp << std::setprecision(14) << val(i) << ",";
+      }
+      tmp << std::setprecision(14) << val(val.size()-1) << "]";
+      f_.append(tmp.str());
     } else {
       f_.append(" ]");
     }
+  }
+
+  void push(const std::string& fieldName, const Eigen::MatrixXd val){
+    if(f_.compare("{")!=0) f_.append(",");
+
+    std::ostringstream tmp;
+    f_.append("\""+fieldName+"\":[");
+
+    if(val.rows()>0 && val.cols()>0){
+    for(int i=0;i<val.rows();i++){
+      f_.append("[");
+      for(int j=0;j<val.cols()-1;j++){
+        tmp << std::setprecision(14) << val(i,j) << ",";
+      }
+      tmp << std::setprecision(14) << val(i,val.cols()-1) << "]";
+      f_.append(tmp.str());
+      if(i<val.rows()-1) f_.append(",");
+    }
+    }
+    f_.append(" ]");
+
   }
 
   void push(const std::string& fieldName, const Eigen::Matrix<size_t,Eigen::Dynamic,1> val){
@@ -143,7 +164,7 @@ public:
 
       doc_.Parse(str.c_str());
       if(doc_.HasParseError()){
-          std::cout << "Failed to parse JSON file named " << filename << std::endl;
+        std::cout << "Failed to parse JSON file named " << filename << std::endl;
       } else {
         isOpen_ = true;
       }
@@ -192,7 +213,7 @@ public:
   }
 
   bool getAllNames(const std::string varname,
-                        std::vector<std::string>& vec){
+                   std::vector<std::string>& vec){
     if(! doc_.HasMember(varname.c_str())){
       std::cout << "no field " << varname << " in JSON file" << std::endl;
       return(false);
@@ -215,7 +236,7 @@ public:
   }
 
   bool getString(const std::string varname,
-                    std::string& vec){
+                 std::string& vec){
 
     if(! doc_.HasMember(varname.c_str())){
       std::cout << "no field " << varname << " in JSON file" << std::endl;
@@ -258,7 +279,7 @@ public:
 
 
   bool getStringVec(const std::string varname,
-                 std::vector<std::string>& vec){
+                    std::vector<std::string>& vec){
 
     if(! doc_.HasMember(varname.c_str())){
       std::cout << "no field " << varname << " in JSON file" << std::endl;
@@ -270,8 +291,8 @@ public:
   }
 
   bool getStringVec(const std::string subtree,
-                  const std::string varname,
-                  std::vector<std::string>& vec){
+                    const std::string varname,
+                    std::vector<std::string>& vec){
 
     if(! doc_.HasMember(subtree.c_str())){
       std::cout << "no subtree " << subtree << " in JSON file" << std::endl;
@@ -302,7 +323,7 @@ public:
   }
 
   bool getNumeric(const std::string varname,
-                 double &dval){
+                  double &dval){
     if(! doc_.HasMember(varname.c_str())){
       std::cout << "no field " << varname << " in JSON file" << std::endl;
       return(false);
@@ -313,8 +334,8 @@ public:
   }
 
   bool getNumeric(const std::string subtree,
-                 const std::string varname,
-                 double &dval){
+                  const std::string varname,
+                  double &dval){
 
     if(! doc_.HasMember(subtree.c_str())){
       //std::cout << "no subtree " << subtree << " in JSON file" << std::endl;
@@ -349,7 +370,7 @@ public:
   }
 
   bool getNumeric(const std::string varname,
-                 Eigen::VectorXd &dval){
+                  Eigen::VectorXd &dval){
     if(! doc_.HasMember(varname.c_str())){
       //std::cout << "no field " << varname << " in JSON file" << std::endl;
       return(false);
@@ -360,8 +381,8 @@ public:
   }
 
   bool getNumeric(const std::string subtree,
-                 const std::string varname,
-                 Eigen::VectorXd &dval){
+                  const std::string varname,
+                  Eigen::VectorXd &dval){
 
     if(! doc_.HasMember(subtree.c_str())){
       //std::cout << "no subtree " << subtree << " in JSON file" << std::endl;
@@ -458,7 +479,7 @@ public:
    */
 
   bool getIntCore(const rapidjson::Value& field,
-                     int& dval){
+                  int& dval){
     if(! field.IsNumber()){
       //std::cout << "bad format in getDoubleCore, not a scalar" << std::endl;
       return(false);

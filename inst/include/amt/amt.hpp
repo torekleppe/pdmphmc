@@ -22,6 +22,7 @@
 #include "amtTriDiagChol.hpp"
 // model specification
 #include "amtModel.hpp"
+#include "amtConstraintInfo.hpp"
 // utilities for importing data
 #include "amtData.hpp"
 

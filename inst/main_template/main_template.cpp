@@ -53,10 +53,22 @@ int main(int argc, char *argv[]){
   amtModel<varType,metricTensorDummy,true> modelSymb(mtd);
   m(modelSymb);
   modelSymb.finalize();
-  //modelSymb.showSummary();
+
+  // verify that any/the constraints are OK
+  if(! modelSymb.checkConstraints()){ throw(597);}
+
+  // get default parameter
+  Eigen::VectorXd q0(modelSymb.dim());
+  modelSymb.getDefaultVals(q0);
+
+  // calculate constraint information
+  constraintInfo ci;
+  ci.compute<model,metricTensorDummy>(m,q0);
 
   size_t dim = modelSymb.dim();
   size_t dimGen = modelSymb.dimGen();
+
+
 
   typedef diagLinearTM_VARI TMtype;
 
@@ -70,7 +82,7 @@ int main(int argc, char *argv[]){
              constantLambda,
              diagnostics> sampler;
 
-  sampler.setup(m,dim,dimGen);
+  sampler.setup(m,dim,dimGen,ci);
   sampler.setPrintPrefix("chain #" + std::to_string(chain_id));
 
 
@@ -147,13 +159,12 @@ int main(int argc, char *argv[]){
    *-------------------------------------------------------------------*/
 
 
-  Eigen::VectorXd q0(dim);
-  modelSymb.getDefaultVals(q0);
 #ifndef _NO_IPS_
-  initialPointSolver<modelSpec__> ips(m,dim,dimGen);
+  initialPointSolver<modelSpec__> ips(m,dim,dimGen,ci);
   ips.seed(seed+1000*chain_id+13);
   if(ips.run(q0)) q0 = ips.bestQ();
 #endif
+
 
 
   /*-------------------------------------------------------------------

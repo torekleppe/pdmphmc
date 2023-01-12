@@ -116,6 +116,7 @@ private:
     return(ret_);
   }
 
+  specialRootSpec sps_;
 public:
 
   RMHMCProcess(){}
@@ -129,7 +130,14 @@ public:
   void seed(const int seed){r_.seed(seed);}
   void setup(targetType& target,
              const int dim,
-             const int dimGen){
+             const int dimGen,
+             const amt::constraintInfo& ci){
+
+    if(ci.nonTrivial()){
+      std::cout << "RMHMCProcess cannot be used with constraints!" << std::endl;
+      throw(1);
+    }
+
     t_ = &target;
 
     dim_ = dim;
@@ -162,7 +170,7 @@ public:
     lastWarmupTime_ = t;
     if(t<1.0e-14) warmup_ = false;
   }
-
+  inline const specialRootSpec& spr() const {return sps_;}
   void registerDiagnostics(diagnosticsType &diag){
     diag_ = &diag;
     auxInt_.registerDiagnostics(diag,1);
@@ -319,7 +327,8 @@ public:
   int eventRootDim() const {return 3;}
   inline Eigen::VectorXd eventRoot(const double time,
                                    const odeState &state,
-                                   const Eigen::VectorXd &f) const {
+                                   const Eigen::VectorXd &f,
+                                   const bool afterOde) const {
     Eigen::VectorXd ret(3);
     ret(0) = state.y.coeff(2*dim_)-u_; // regular PDP event
     ret(1) = 1.0;
@@ -334,13 +343,13 @@ public:
 
 
 
-  bool event(const int EventType,
+  bool event(const rootInfo& rootOut,
              const double time,
              const odeState &oldState,
              const Eigen::VectorXd &f,
              odeState &newState){
     //std::cout << "Event!, type = " << EventType << std::endl;
-
+    int EventType = rootOut.rootDim_;
     oldState.copyTo(newState);
 
     if(EventType==0){ // regular PDP event

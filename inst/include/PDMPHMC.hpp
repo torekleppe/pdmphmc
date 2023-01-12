@@ -44,12 +44,13 @@
  *
  */
 
-
+#include "numUtils/numUtils.hpp"
 #include "Eigen_utils.hpp"
 #include "diagnostics.hpp"
 #include "json_wrap.hpp"
 #include "propertyTable.hpp"
 #include "stabilityMonitor.hpp"
+#include "rng.hpp"
 /*
  * Model specifications
  *
@@ -78,10 +79,8 @@
 
 #include "odeUtils.hpp"
 #include "sparseChol.hpp"
-#include "rng.hpp"
 #include "NUTwrap.hpp"
 #include "startWrap.hpp"
-
 
 #include "RKDP54.hpp"
 #include "RKNDP64.hpp"
@@ -104,7 +103,9 @@
 
 
 #include "HMCProcess.hpp"
+#include "HMCProcessConstr.hpp"
 #include "RMHMCProcess.hpp"
+
 
 
 #include "PDPsampler.hpp"

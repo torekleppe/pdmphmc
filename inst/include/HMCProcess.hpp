@@ -29,13 +29,13 @@ public:
 private:
   // wrapper for *this object used for auxiliary integrator
   NUTwrapFirstOrderODE< thisType_ > nutWrap_;
-  startWrapHMCFirstOrderODE< thisType_ > startWrap_;
+  //startWrapHMCFirstOrderODE< thisType_ > startWrap_;
 
 
 public:
   // auxiliary integrators
   integratorType< NUTwrapFirstOrderODE< thisType_> , stepType , diagnosticsType> auxInt_;
-  integratorType< startWrapHMCFirstOrderODE< thisType_>, stepType , diagnosticsType> startInt_;
+  //integratorType< startWrapHMCFirstOrderODE< thisType_>, stepType , diagnosticsType> startInt_;
 
 
 
@@ -108,6 +108,8 @@ private:
     return(ret_);
   }
 
+  specialRootSpec sps_;
+
 public:
 
   HMCProcess(){}
@@ -122,7 +124,13 @@ public:
   void seed(const int seed){r_.seed(seed);}
   void setup(targetType& target,
              const int dim,
-             const int dimGen){
+             const int dimGen,
+             const amt::constraintInfo& ci){
+
+    if(ci.nonTrivial()){
+      std::cout << "HMCProcess cannot be used with constraints!" << std::endl;
+      throw(1);
+    }
 
     t_ = &target;
     dim_ = dim;
@@ -137,9 +145,9 @@ public:
 
 
     nutWrap_.setup(*this);
-    startWrap_.setup(*this);
+    //startWrap_.setup(*this);
     auxInt_.setup(nutWrap_);
-    startInt_.setup(startWrap_);
+    //startInt_.setup(startWrap_);
     aux_storePars_.resize(0);
 
     TM_.setup(dim_);
@@ -150,6 +158,7 @@ public:
 
   }
 
+  inline const specialRootSpec& spr() const {return sps_;}
   void lastWarmupTime(const double t){
     lastWarmupTime_ = t;
     if(t<1.0e-14) warmup_ = false;
@@ -159,7 +168,7 @@ public:
   inline void registerDiagnostics(diagnosticsType &diag){
     diag_ = &diag;
     auxInt_.registerDiagnostics(diag,1.0);
-    startInt_.registerDiagnostics(diag,2.0);
+    //startInt_.registerDiagnostics(diag,2.0);
   }
 
   int systemDim() const {return dim_;}
@@ -239,11 +248,18 @@ public:
   void SimulateIntialState(const int odeOrder,
                            const Eigen::VectorXd &par0,
                            odeState &s0){
+
+    if(odeOrder!=1){
+      std::cout << "bad odeOrder" << std::endl;
+      throw(1);
+    }
+
+
     Eigen::VectorXd q0 = par0;
     TM_.toQ(q0);
     q_tmp_ = q0;
 
-
+/*
     // set initial momentum proportional to gradient
     targetGrad();
     // ensure
@@ -259,7 +275,7 @@ public:
       y_tmp_.segment(dim_,dim_) = p_tmp_; // p
       y_tmp_(2*dim_) = 0.0; //Lam
 
-      startWrap_.setQLastEvent(q_last_event_);
+      //startWrap_.setQLastEvent(q_last_event_);
       startInt_.setInitialState(odeState(y_tmp_));
       std::cout << "startint initial state done" << std::endl;
       startInt_.setAbsTol(1.0e-3);
@@ -269,16 +285,21 @@ public:
 
 
       s0 = startInt_.getStateLastIntegrated();
+ */
+      if(s0.y.size()!=2*dim_+1) s0.y.resize(2*dim_+1);
+      if(p_tmp_.size()!=dim_) p_tmp_.resize(dim_);
       r_.rnorm(p_tmp_);
+      s0.y.head(dim_) = q_tmp_;
       s0.y.segment(dim_,dim_) = p_tmp_;
       s0.y(2*dim_) = 0.0;
       q_last_event_ = s0.y.head(dim_);
       nut_time_ = 0.0;
-
+/*
     } else {
       std::cout << "HMCprocess::SimulateIntialState not implemented yet for odeOrder==2";
       throw(1);
     }
+*/
 
 
 
@@ -290,7 +311,8 @@ public:
   inline int eventRootDim() const {return 3;}
   inline Eigen::VectorXd eventRoot(const double time,
                                    const odeState &state,
-                                   const Eigen::VectorXd &f) const {
+                                   const Eigen::VectorXd &f,
+                                   const bool afterOde) const {
     Eigen::VectorXd ret(eventRootDim());
     ret(0) = state.y.coeff(2*dim_)-u_; // regular PDP event
     ret(1) = 1.0;
@@ -307,11 +329,13 @@ public:
 
 
 
-  bool event(const int EventType,
+  bool event(const rootInfo& rootOut,
              const double time,
              const odeState &oldState,
              const Eigen::VectorXd &f,
              odeState &newState){
+
+    int EventType = rootOut.rootDim_;
     //std::cout << "proc.event" << std::endl;
     oldState.copyTo(newState);
     //return(true);

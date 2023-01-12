@@ -3,7 +3,7 @@
 
 
 /*
- 
+
  wrapper class for standard library random number generation
 
 */
@@ -17,7 +17,7 @@ class rng{
   std::mt19937_64 gen_;
   std::normal_distribution<double> stdnormal_;
   std::uniform_real_distribution<double> unif_;
-  
+
 public:
   rng(const int seed){
     gen_.seed(seed);
@@ -26,9 +26,9 @@ public:
     std::uniform_real_distribution<>::param_type uparam(0.0,1.0);
     unif_.param(uparam);
   };
-  
+
   rng(){rng(1);};
-  
+
   void seed(const int seed){gen_.seed(seed);};
   inline double rnorm(){
 #ifndef __STORE_RNGS__
@@ -39,7 +39,7 @@ public:
     return(r);
 #endif
     };
-  double runif(){
+  inline double runif(){
 #ifndef __STORE_RNGS__
     return unif_(gen_);
 #else
@@ -48,24 +48,27 @@ public:
     return(r);
 #endif
     };
-  void rnorm(Eigen::Matrix<double,Eigen::Dynamic,1> &v){
+  inline void rnorm(Eigen::Matrix<double,Eigen::Dynamic,1> &v){
     for(int i=0;i<v.size();i++) v.coeffRef(i) = rnorm();
   };
-  void rnorm(Eigen::Ref<Eigen::VectorXd> v){
+  inline void rnorm(Eigen::Ref<Eigen::VectorXd> v){
     for(int i=0;i<v.size();i++) v.coeffRef(i) = rnorm();
   };
-  Eigen::Matrix<double,Eigen::Dynamic,1> rnorm(const int d){
+  inline Eigen::Matrix<double,Eigen::Dynamic,1> rnorm(const int d){
     Eigen::Matrix<double,Eigen::Dynamic,1> ret(d);
     rnorm(ret);
     return(ret);
   }
-  void rnorm(Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic> &m){
+  inline void rnorm(Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic> &m){
     for(int i=0;i<m.rows();i++) for(int j=0;j<m.cols();j++) m.coeffRef(i,j)= rnorm();
   };
-  double rgamma(const double alpha, const double beta){
+  inline double rgamma(const double alpha, const double beta){
     std::gamma_distribution<double> dstr(alpha,beta);
     return dstr(gen_);
   }
+
+  inline unsigned rInt(){return gen_();}
+
 /*
   void randsample(const Eigen::Matrix<double,Eigen::Dynamic,1> wts, Eigen::Matrix<int,Eigen::Dynamic,1> &sample){
     int nout = sample.size();
@@ -89,10 +92,10 @@ public:
       }
     }
 
-    
+
   }*/
-  
-  
+
+
 };
 
 #endif

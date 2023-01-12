@@ -76,99 +76,8 @@ private:
   int id_;
   std::string printPrefix_;
 
-/*
-  double findEventTime(const int which,
-                       const double leftBound,
-                       const double rightBound,
-                       const double leftFunVal,
-                       const double rightFunVal) {
-    double lb = leftBound;
-    double rb = rightBound;
-    double lf = leftFunVal;
-    double rf = rightFunVal;
 
-    double tb = 0.5*step_.eps_;
-    double dev = step_.denseEventRoot_Level(which,tb);
-    double ddev = step_.denseEventRoot_LevelDot(which,tb);
-    int iter = 0;
-    while(abs(dev)>1.0e-12 && iter<30){
-
-      if(lf*dev>0){
-        lb = tb;
-        lf = dev;
-      } else {
-        rb = tb;
-        rf = dev;
-      }
-
-      tb = tb - dev/ddev;
-      if(tb<=lb || tb>=rb) tb = 0.5*(lb+rb);
-
-      dev = step_.denseEventRoot_Level(which,tb);
-      ddev = step_.denseEventRoot_LevelDot(which,tb);
-
-      iter++;
-
-    }
-    if(std::abs(dev)>1.0e-6){
-      std::cout << "Warning: event time could not be determined accurately, dev= " << dev << " sol = " << tb << std::endl;
-    }
-    return(tb);
-
-  }
- */
-
-  /*
-   double findEventTime(const int which){
-   return(findEventTime(which,0.0,eps_,events_(which,0),events_(which,6)));
-   }
-   */
-
-  /*
-   * Check for events on a grid
-   */
-/*
-  Eigen::VectorXd timeGridEvent_;
-  int oldEventDim_;
-  double eventGridSearch(int &whichDim){
-    whichDim = -1;
-    timeGridEvent_.setLinSpaced(__EVENT_SEARCH_GRID_SIZE__,0.0,step_.eps_);
-
-    //std::cout << "gridEventSearch, id = " << id_ << std::endl;
-    double left_val,right_val;
-    int last = timeGridEvent_.size()-1;
-
-    double ret = step_.eps_;
-    double t_this;
-    for(int d = 0; d<dimEvent_;d++){ // over dimensions
-      left_val = step_.denseEventRoot_Level(d,0.0);
-
-
-      for(int i = 1; i<=last;i++){
-        right_val = step_.denseEventRoot_Level(d,timeGridEvent_.coeff(i));
-
-        if(right_val*left_val<0.0){ // root in this interval
-          last = i;
-          t_this = findEventTime(d,timeGridEvent_(i-1),timeGridEvent_(i),left_val,right_val);
-
-          if(t_this<ret){ // first root found
-            ret = t_this;
-            whichDim = d;
-            //std::cout << " best so far at " << ret << " d = " << whichDim << std::endl;
-          }
-          break;
-
-        }
-        left_val = right_val;
-      }
-    }
-
-
-    oldEventDim_ = whichDim;
-    return(ret);
-  }
-
-*/
+  //specialRootSpec sps_;
 
 public:
 
@@ -209,6 +118,10 @@ public:
     std::cout << "generated dimension: " << dimGenerated_ << std::endl;
     std::cout << "eventRoot dimension: " << dimEvent_ << std::endl;
 #endif
+
+      //(*ode_).specialRoots(sps_);
+
+
   }
 
 
@@ -350,6 +263,11 @@ public:
       //
       //if(step_.hasEventRootSolver()){
       rootOut = step_.eventRootSolver();
+
+#ifdef __DEBUG__
+      std::cout << rootOut << std::endl;
+#endif
+
       //} else {
       //  eventTime = eventGridSearch(whichEventFirst);
       //}

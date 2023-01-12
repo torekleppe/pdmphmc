@@ -24,6 +24,10 @@ inline stan::math::var numericValue(const stan::math::var& arg){return arg;}
 inline stan::math::var numericValue(const amtVar& arg){return arg.value();}
 
 
+
+
+
+
 template <class varType, class tensorType, bool storeNames>
 class amtModel{
   std::vector<std::string> parNames_;
@@ -55,7 +59,7 @@ class amtModel{
   size_t nonLinConstrCount_;
   Eigen::Matrix<stan::math::var,Eigen::Dynamic,1> linConstr_;
   Eigen::Matrix<stan::math::var,Eigen::Dynamic,1> nonLinConstr_;
-  Eigen::MatrixXd linConstrJac_;
+  //Eigen::MatrixXd linConstrJac_;
 
   inline void reset(){
     if constexpr (storeNames){
@@ -120,10 +124,14 @@ public:
 
   inline size_t dim() const {return parCount_;}
   inline size_t dimGen() const {return generatedCount_;}
+  inline size_t numLinConstr() const {return linConstrCount_;}
+  inline size_t numNonlinConstr() const {return nonLinConstrCount_;}
   inline void finalize(){
     expandParNames();
     expandGeneratedNames();
   }
+  //inline constraintInfo constrInfo() const {return constraintInfo(nonLinConstrCount_,linConstrCount_);}
+
 
   std::vector<std::string> storeColNames(const Eigen::VectorXi& storePars){
     std::vector<std::string> ret;
@@ -160,7 +168,6 @@ public:
     } else if constexpr (std::is_same_v<amtVar, varType>){
       for(size_t i=0;i<par_.size();i++) par_.coeffRef(i).independent(adPar.coeff(i),i);
     }
-
   }
 
 
@@ -243,6 +250,48 @@ public:
   inline stan::math::var getTarget() const {return(target_);}
   inline void getGenerated(Eigen::VectorXd& genOut) const {genOut = generated_;}
   inline double getTargetDouble() const {return target_.val(); }
+  inline Eigen::VectorXd getLinConstraint() const {
+    Eigen::VectorXd ret(linConstrCount_);
+    for(size_t i=0;i<linConstrCount_;i++) ret.coeffRef(i) = linConstr_.coeff(i).val();
+    return(ret);
+  }
+  inline double getNonLinConstraint(const int which) const {return nonLinConstr_.coeff(which).val();}
+  inline Eigen::VectorXd getNonLinConstraint() const {
+    Eigen::VectorXd ret(nonLinConstr_.size());
+    for(size_t i=0;i<nonLinConstr_.size();i++) ret.coeffRef(i) = nonLinConstr_.coeff(i).val();
+    return(ret);
+  }
+  inline double minConstraint() const {
+    double ret = 1.0;
+    if(nonLinConstrCount_>0){
+      for(size_t i=0;i<nonLinConstrCount_;i++) ret = std::min(ret,nonLinConstr_.coeff(i).val());
+    }
+    if(linConstrCount_>0){
+      for(size_t i=0;i<linConstrCount_;i++) ret = std::min(ret,linConstr_.coeff(i).val());
+    }
+    // add further special constraints here
+    return(ret);
+  }
+
+  inline bool checkConstraints(){
+    if(nonLinConstrCount_<1 && linConstrCount_<1){
+      std::cout << "no constraints" << std::endl;
+      return true;
+    }
+    if(minConstraint()>=0.0){
+      std::cout << "constraints OK" << std::endl;
+      return true;
+    } else {
+      std::cout << "the following constraints are violated" << std::endl;
+      for(size_t i=0;i<nonLinConstrCount_;i++){
+        if(nonLinConstr_.coeff(i).val()<0.0){
+          std::cout << "nonlinConstraint # " << i+1 << " evaluates to " << nonLinConstr_.coeff(i).val() << std::endl;
+        }
+      }
+      return false;
+    }
+  }
+
 
   inline void getTargetGradient(Eigen::VectorXd& grad){
     if(grad.size()!=par_.size()) grad.resize(par_.size());
@@ -256,17 +305,29 @@ public:
     stan::math::recover_memory();
   }
 
-  inline void linConstraintJacobian(){
-    if(linConstrCount_>0) linConstrJac_.resize(par_.size(),linConstrCount_);
-    for(size_t i=0; i<linConstrCount_;i++){
-      linConstr_.coeffRef(i).grad();
-      for(size_t j=0; j<par_.size();j++) linConstrJac_.coeffRef(j,i) = par_.coeff(j).adj();
-      stan::math::set_zero_all_adjoints();
+  inline void nonLinConstraintGradient(const int whichConstraint,
+                                       Eigen::VectorXd& grad){
+    if(grad.size()!=par_.size()) grad.resize(par_.size());
+    if constexpr (std::is_same_v<stan::math::var, varType>){
+      nonLinConstr_.coeffRef(whichConstraint).grad();
+      for(size_t i=0;i<grad.size();i++) grad.coeffRef(i) = par_.coeff(i).adj();
+    } else {
+      std::cout << "getTargetGradient not implemented for varType!=stan::math::var" << std::endl;
+      throw(1);
     }
-    std::cout << "linConstr jac \n" << linConstrJac_ << std::endl;
+    stan::math::recover_memory();
   }
 
+  inline void linConstraintJacobian(Eigen::MatrixXd& linConstrJac){
+    if(linConstrCount_>0) linConstrJac.resize(linConstrCount_,par_.size());
+    for(size_t i=0; i<linConstrCount_;i++){
+      linConstr_.coeffRef(i).grad();
+      for(size_t j=0; j<par_.size();j++) linConstrJac.coeffRef(i,j) = par_.coeff(j).adj();
+      stan::math::set_zero_all_adjoints();
+    }
+  }
 
+/*
   inline void checkLinConstraintJacobian(){
     if(linConstrCount_>0){
       double dev;
@@ -284,7 +345,7 @@ public:
       std::cout << "Linear constraints OK" << std::endl;
     }
   }
-
+*/
   inline void linConstraint(const varType& constr){
     linConstrCount_++;
     if(linConstr_.size()<linConstrCount_) linConstr_.conservativeResize(linConstrCount_);

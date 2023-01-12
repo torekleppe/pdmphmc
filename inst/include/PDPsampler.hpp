@@ -43,8 +43,9 @@ public:
 
   void setup(target_type& target,
              const int dim,
-             const int dimGen){
-    proc_.setup(target,dim,dimGen);
+             const int dimGen,
+             const amt::constraintInfo& ci){
+    proc_.setup(target,dim,dimGen,ci);
     int_.setup(proc_);
   }
 
@@ -210,7 +211,6 @@ public:
     odeState state0;
     proc_.SimulateIntialState(int_.odeOrder(),q0,state0);
     int_.setInitialState(state0);
-
 
     std::cout << "done initial state" << std::endl;
     // acutal PDP simulation

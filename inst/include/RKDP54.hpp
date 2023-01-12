@@ -174,7 +174,7 @@ public:
 
   RKDP54() : absTol_(1.0e-4), relTol_(1.0e-4), eps_(1.0) {}
   inline int odeOrder() const {return 1;}
-  //constexpr bool hasEventRootSolver() const {return true;}
+
   inline double errorOrderHigh() const {return(5.0);}
   inline void setup(_ode_type_ &ode){
     ode_ = &ode;
@@ -196,6 +196,10 @@ public:
     events_.resize(dimEvent_,7);
     events_.setZero();
 
+    if((*ode_).spr().nonTrivial()){
+      std::cout << "special roots (linear/special constraints?) not implemented for RKDP54 yet" << std::endl;
+      throw(234);
+    }
   }
 
   rootInfo eventRootSolver(){
@@ -226,7 +230,7 @@ public:
 
     tmpState_.y = ys_.col(1);
     events_.col(1) = (*ode_).eventRoot(t_left_+0.2*eps_,
-                tmpState_,force_.col(1));
+                tmpState_,force_.col(1),true);
 
     if(! force_.col(1).array().isFinite().all()) return(false);
 
@@ -240,7 +244,7 @@ public:
     if(diag_tmp_.size()>0) diag_.col(2) = diag_tmp_;
     tmpState_.y = ys_.col(2);
     events_.col(2) = (*ode_).eventRoot(t_left_ + 0.3*eps_,
-                tmpState_,force_.col(2));
+                tmpState_,force_.col(2),true);
 
 
     if(! force_.col(2).array().isFinite().all()) return(false);
@@ -256,7 +260,7 @@ public:
     if(diag_tmp_.size()>0) diag_.col(3) = diag_tmp_;
     tmpState_.y = ys_.col(3);
     events_.col(3) = (*ode_).eventRoot(t_left_ + 0.8*eps_,
-                tmpState_,force_.col(3));
+                tmpState_,force_.col(3),true);
 
 
     if(! force_.col(3).array().isFinite().all()){ return(false);}
@@ -274,7 +278,7 @@ public:
     if(diag_tmp_.size()>0) diag_.col(4) = diag_tmp_;
     tmpState_.y = ys_.col(4);
     events_.col(4) = (*ode_).eventRoot(t_left_ + (8.0/9.0)*eps_,
-                tmpState_,force_.col(4));
+                tmpState_,force_.col(4),true);
 
     if(! force_.col(4).array().isFinite().all()) return(false);
 
@@ -291,7 +295,7 @@ public:
     if(diag_tmp_.size()>0) diag_.col(5) = diag_tmp_;
     tmpState_.y = ys_.col(5);
     events_.col(5) = (*ode_).eventRoot(t_left_ + eps_,
-                tmpState_,force_.col(5));
+                tmpState_,force_.col(5),true);
 
     if(! force_.col(5).array().isFinite().all()) return(false);
 
@@ -310,7 +314,7 @@ public:
     if(diag_tmp_.size()>0) diag_.col(6) = diag_tmp_;
     tmpState_.y = ys_.col(6);
     events_.col(6) = (*ode_).eventRoot(t_left_ + eps_,
-                tmpState_,force_.col(6));
+                tmpState_,force_.col(6),true);
 
     if(! force_.col(6).array().isFinite().all()) return(false);
 
@@ -367,7 +371,8 @@ public:
     event_tmp_ = (*ode_).eventRoot(
         t_left_+eventTime,
         tmpState_,
-        force_tmp_);
+        force_tmp_,
+        false);
     if(std::fabs(event_tmp_(whichEvent))>200.0*absTol_){
       std::cout << "eventRoot at interpolated state: " << event_tmp_(whichEvent) << std::endl;
       std::cout << "whichEvent : " << whichEvent << std::endl;
@@ -375,7 +380,7 @@ public:
 
     // evaluate the new state after event occurred
     bool eventContinue = (*ode_).event(
-        whichEvent, // which event
+        rootOut, // which event
         t_left_+eventTime, // time of event
         tmpState_, // state at event
         force_tmp_, // force at event
@@ -395,7 +400,7 @@ public:
     events_.col(6) = (*ode_).eventRoot(
       t_right_,
       newState_,
-      force_.col(6));
+      force_.col(6),true);
 
     // set the active eventRoot at event artificially to exactly zero
     // if the event root equation did not change
@@ -441,7 +446,7 @@ public:
     if(diag_tmp_.size()!= diag_.rows()) diag_.resize(diag_tmp_.size(),7);
     if(diag_tmp_.size()>0) diag_.col(0) = diag_tmp_;
 
-    events_.col(0) = (*ode_).eventRoot(0.0,odeState(ys_.col(0)),force_.col(0));
+    events_.col(0) = (*ode_).eventRoot(0.0,odeState(ys_.col(0)),force_.col(0),true);
     return(force_.col(0).array().isFinite().all());
   }
 

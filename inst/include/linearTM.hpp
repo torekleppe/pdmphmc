@@ -7,11 +7,11 @@ class identityTM{
   int dim_;
 public:
   inline void setup(const int dim){dim_=dim;}
-  
+
   inline void toPar(Eigen::VectorXd &var) const {}
   inline void toPar(const Eigen::VectorXi &which,
              Eigen::Ref<Eigen::VectorXd> par) const {}
-  inline void toPar(const Eigen::VectorXd &q, 
+  inline void toPar(const Eigen::VectorXd &q,
              const Eigen::VectorXi &which,
              Eigen::VectorXd &par) const {
     if(par.size()!=which.size()) par.resize(which.size());
@@ -23,6 +23,7 @@ public:
   template <class varType>
   inline void toParInverseJac(Eigen::Matrix<varType,Eigen::Dynamic,1> &var) const {}
   inline void toQ(Eigen::VectorXd &var) const {}
+  inline const Eigen::VectorXd getMu() const {return Eigen::VectorXd::Zero(dim_);}
   inline bool massAllowsFixedSubvector() const {return(false);}
   inline bool setFixedMinv(const Eigen::VectorXd &fixedMi){
     std::cout << "identityTM: attempting to set fixedMinv" << std::endl;
@@ -53,8 +54,8 @@ public:
   inline void adaptUpdate(){
     std::cout << "identityTM: attempting adaptUpdate()" << std::endl;
   }
-  
-  
+
+
 };
 
 
@@ -64,8 +65,8 @@ public:
   Eigen::VectorXd mu_;
   Eigen::VectorXd L_; // \approx marginal standard deviations of target
   Eigen::VectorXi adaptable_;
-  
-  
+
+
   void setup(const int dim){
     mu_.resize(dim);
     mu_.setZero();
@@ -77,10 +78,10 @@ public:
   bool massAllowsFixedSubvector() const {return(true);}
   bool setFixedMinv(const Eigen::VectorXd &fixedMi){
     if(fixedMi.size()!=L_.size()){
-      std::cout << "WARNING : bad dimension in setFixedMinv" << std::endl; 
+      std::cout << "WARNING : bad dimension in setFixedMinv" << std::endl;
       return(false);
     }
-    
+
     adaptable_.resize((fixedMi.array()<=0.0).count());
     int k=0;
     for(int i=0;i<L_.size();i++){
@@ -107,7 +108,7 @@ public:
       par.coeffRef(i) += mu_.coeff(which.coeff(i));
     }
   }
-  void toPar(const Eigen::VectorXd &q, 
+  void toPar(const Eigen::VectorXd &q,
              const Eigen::VectorXi &which,
              Eigen::VectorXd &par) const {
     if(par.size()!=which.size()) par.resize(which.size());
@@ -130,7 +131,9 @@ public:
     var -= mu_;
     var.array() /= L_.array();
   }
-  
+
+  inline const Eigen::VectorXd& getMu() const {return mu_;}
+
   inline double LMax(){return L_.maxCoeff();}
   inline double LMin(){return L_.minCoeff();}
   void toJSON(jsonOut &outf) const {
@@ -146,7 +149,7 @@ class diagLinearTM_VARI: public diagLinearTM_base {
   Eigen::VectorXd M12_;
   Eigen::VectorXd tmpVec_;
   double T_;
-  
+
 public:
   diagLinearTM_VARI() :  numPushed_(0), T_(0.0) {}
   void monitor(const Eigen::VectorXd &q,
@@ -197,7 +200,7 @@ public:
         L_.coeffRef(ii) = std::fmin(2.0*old,std::fmax(0.5*old,sqrt(tmpVec_.coeff(i))));
         mu_.coeffRef(ii) = M12_.coeff(i);
       }
-    } 
+    }
   }
 };
 
@@ -240,9 +243,9 @@ public:
                       Eigen::VectorXd &mon){
     monitor(q,emptyVec_,pdot,mon);
   }
-  
-  
-  
+
+
+
   inline void push(const double eps,
                    const Eigen::VectorXd &Sample){
     double Tnew;
@@ -269,7 +272,7 @@ public:
         L_.coeffRef(ii) = std::fmin(2.0*old,std::fmax(0.5*old,1.0/sqrt(M12_.coeff(asize+i))));
         mu_.coeffRef(ii) = M12_.coeff(i);
       }
-    } 
+    }
   }
 };
 

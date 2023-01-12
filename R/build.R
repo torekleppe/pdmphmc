@@ -27,7 +27,7 @@
 #'
 build <- function(model.file,
                   model.class.name="model",
-                  process.type=c("HMCProcess","RMHMCProcess"),
+                  process.type=c("HMCProcessConstr","HMCProcess","RMHMCProcess"),
                   step.type=c("RKDP54","RKBS32"),
                   amt=process.type=="RMHMCProcess",
                   metric.tensor.type=c("Sparse","Dense"),

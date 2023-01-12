@@ -2,8 +2,8 @@
 #define _INITIALPOINTSOLVER_HPP_
 #include <iostream>
 /*
- * Heavily robustified initial pdmphmc-based solver to work out intial configurations
- * Based on RKDP54 steps
+ * Heavily robustified initial pdmphmc-based solver to work out initial configurations
+ * Based on RKBS32 steps
  */
 
 #define _IPS_MAX_STEPS_PER_LEG_ 1000
@@ -18,20 +18,18 @@
 
 
 template <class targetType>
-class initialPointSolver{
+class IPSode{
   targetType* t_;
   metricTensorDummy mtd_;
   amt::amtModel<stan::math::var,metricTensorDummy,false> mdl_;
-  RKDP54< initialPointSolver<targetType> > rk_;
   size_t dim_;
   size_t dimGen_;
+  amt::constraintInfo ci_;
+  specialRootSpec sps_;
+  Eigen::VectorXd linJacSNorms_;
+  //specialRootSpec sps_;
+  Eigen::VectorXd par_tmp_,grad_tmp_,q_curr_;
 
-  Eigen::VectorXd par_tmp_,grad_tmp_,y_tmp_,q_curr_;
-
-  rng r_;
-  stabilityMonitor mon_;
-
-  double kinEnergyThresh_;
 
   inline double targetGrad(){
     mdl_.setIndependent(par_tmp_,dimGen_);
@@ -55,14 +53,163 @@ class initialPointSolver{
     return(ret_);
   }
 
+  inline double constraintGrad(const int whichConstr){
+    mdl_.setIndependent(par_tmp_,dimGen_);
+    try{
+      //dret_ = t_(dpar_,gen_tmp_,tensorDummy_);
+      t_->operator()(mdl_);
+    }
+    catch(...){
+      stan::math::recover_memory();
+#ifdef __DEBUG__
+      std::cout << "Bad function eval" << std::endl;
+      std::cout << "par : \n " << par_tmp_ << std::endl;
+#endif
+      grad_tmp_.setConstant(std::numeric_limits<double>::quiet_NaN());
+      return std::numeric_limits<double>::quiet_NaN();
+    }
+    //mdl_.getGenerated(gen_tmp_);
+    double ret_ = mdl_.getNonLinConstraint(whichConstr);
+    mdl_.nonLinConstraintGradient(whichConstr,grad_tmp_);
+    return(ret_);
+  }
+
+  inline void specialRoots() {
+    if(ci_.numLin_>0){
+      sps_.linRootJac_.resize(ci_.linJac_.rows(),dim());
+      sps_.linRootJac_.setZero();
+      sps_.linRootJac_.leftCols(dim_) = ci_.linJac_;
+      sps_.linRootConst_ = ci_.linConst_;
+      linJacSNorms_.resize(ci_.linJac_.rows());
+      for(size_t i=0;i<ci_.linJac_.rows();i++) linJacSNorms_.coeffRef(i) = ci_.linJac_.row(i).squaredNorm();
+    }
+  }
+
+public:
+  IPSode(targetType& t,
+         const size_t dim,
+         const size_t dimGen,
+         const amt::constraintInfo& ci) : t_(&t), dim_(dim), dimGen_(dimGen), ci_(ci) {
+    specialRoots();
+  }
+
+  void setCurrentQ(const Eigen::VectorXd& cq){ q_curr_ = cq;}
+
+  inline size_t generatedDim() const {return 5;}
+  inline size_t eventRootDim() const {return ci_.numNonLin_;}
+  inline size_t dim() const {return 2*dim_;}
+  void ode(const double time,
+           const Eigen::VectorXd &y, // y = (q,p,lambda)
+           Eigen::VectorXd &f,
+           Eigen::VectorXd &gen,
+           Eigen::VectorXd &diagInt){
+    // qdot
+    f.head(dim_) = y.segment(dim_,dim_);
+    // pdot
+    par_tmp_ = y.head(dim_);
+    gen.coeffRef(0) = targetGrad(); // log-density = negative potential energy
+    gen.coeffRef(1) = 0.5*y.segment(dim_,dim_).squaredNorm(); // kinetic energy
+    gen.coeffRef(2) = grad_tmp_.dot(y.segment(dim_,dim_)); // log-density time derivative
+    gen.coeffRef(3) = (y.head(dim_)-q_curr_).dot(y.segment(dim_,dim_)); // NUT-criterion
+    gen.coeffRef(4) = -gen.coeff(0) + gen.coeff(1); // hamiltonian
+    f.segment(dim_,dim_) = grad_tmp_;
+
+    if(diagInt.size()!=0) diagInt.resize(0);
+  }
+
+  inline Eigen::VectorXd eventRoot(const double time,
+                                   const odeState &state,
+                                   const Eigen::VectorXd &f,
+                                   const bool afterOde) {
+    if(!afterOde){
+      par_tmp_ = state.y.head(dim_);
+      targetGrad();
+    }
+    Eigen::VectorXd ret(eventRootDim());
+    if(ret.size()>0) ret = mdl_.getNonLinConstraint();
+    return(ret);
+  }
+
+
+  inline double targetGradient(const Eigen::VectorXd& q,
+                               Eigen::VectorXd& grad){
+    par_tmp_ = q;
+    double ret = targetGrad();
+    grad = grad_tmp_;
+    return(ret);
+  }
+
+  inline double minConstraint() const {return mdl_.minConstraint();}
+
+  bool event(const rootInfo& rootOut,
+             const double time,
+             const odeState &oldState,
+             const Eigen::VectorXd &f,
+             odeState &newState){
+    oldState.copyTo(newState);
+     if(rootOut.rootType_==0){
+       // nonLinear root
+       par_tmp_ = oldState.y.head(dim_);
+       double constr = constraintGrad(rootOut.rootDim_);
+       std::cout << "constraint at root " << constr << std::endl;
+       double fac = 2.0*grad_tmp_.dot(oldState.y.segment(dim_,dim_))/grad_tmp_.squaredNorm();
+       std::cout << "fac " << fac << std::endl;
+       if(fac<0.0) {
+         newState.y.segment(dim_,dim_) -= fac*grad_tmp_;
+       } else {
+         std::cout << "nonlin: trajectory passing into allowed region!!!" << std::endl;
+       }
+     } else if(rootOut.rootType_==1) {
+        double fac = 2.0*ci_.linJac_.row(rootOut.rootDim_).dot(oldState.y.segment(dim_,dim_))/linJacSNorms_.coeff(rootOut.rootDim_);
+       std::cout << "fac " << fac << std::endl;
+       if(fac<0.0) {
+         newState.y.segment(dim_,dim_) -= fac*ci_.linJac_.row(rootOut.rootDim_);
+       } else {
+        std::cout << "lin: trajectory passing into allowed region!!!" << std::endl;
+       }
+     } else {
+       std::cout << "special roots type " << rootOut.rootType_ << " not implemented in IPSode" << std::endl;
+     }
+
+    return(true);
+  }
+
+
+  inline const specialRootSpec& spr() const {return sps_;}
+};
+
+
+
+template <class targetType>
+class initialPointSolver{
+  //targetType* t_;
+  //metricTensorDummy mtd_;
+  //amt::amtModel<stan::math::var,metricTensorDummy,false> mdl_;
+
+  IPSode<targetType> ode_;
+  RKBS32< IPSode<targetType> > rk_;
+  size_t dim_;
+  size_t dimGen_;
+  //constraintInfo ci_;
+
+  Eigen::VectorXd par_tmp_,grad_tmp_,y_tmp_,q_curr_,rootState_;
+
+  rng r_;
+  stabilityMonitor mon_;
+
+  double kinEnergyThresh_;
+
+  //specialRootSpec sps_;
+
+
   void updateEps(){
-    rk_.eps_ *= std::min(5.0,std::max(0.2,0.95*std::pow(rk_.stepErr_,-0.2)));
+    rk_.eps_ *= std::min(5.0,std::max(0.2,0.95*std::pow(rk_.stepErr_,-0.333)));
   }
 
   int optimize(){
     // simple steepest descent method with fairly accurate line search
     par_tmp_ = q_curr_;
-    double obj0 = targetGrad();
+    double obj0 = ode_.targetGradient(par_tmp_,grad_tmp_);
 #ifdef _IPS_DEBUG_
     std::cout << "optimize: target : " << obj0 << std::endl;
 #endif
@@ -83,11 +230,11 @@ class initialPointSolver{
 
     for(size_t i=1;i<=50;i++){
       par_tmp_ = q_curr_+a*sdir;
-      obj = targetGrad();
+      obj = ode_.targetGradient(par_tmp_,grad_tmp_);
 #ifdef _IPS_DEBUG_
-      std::cout << "bisection: target : " << obj0 << std::endl;
+      std::cout << "bisection: target : " << obj0 << "\t minConstraint: " << mdl_.minConstraint() << std::endl;
 #endif
-      if(std::isfinite(obj)){
+      if(std::isfinite(obj) && ode_.minConstraint()>-1.0e-4){
         if(obj>obj0){
           progressMade = true;
           lastGood = par_tmp_;
@@ -118,6 +265,7 @@ class initialPointSolver{
       std::cout << "bracketing failed" << std::endl;
       if(progressMade){
         q_curr_ = lastGood;
+        ode_.setCurrentQ(q_curr_);
         return(0);
       } else {
         return(1);
@@ -143,9 +291,9 @@ class initialPointSolver{
         a = 0.5*(ub+lb);
       }
       par_tmp_ = q_curr_+a*sdir;
-      obj = targetGrad();
+      obj = ode_.targetGradient(par_tmp_,grad_tmp_);
 
-      if(std::isfinite(obj)){
+      if(std::isfinite(obj) && ode_.minConstraint()>-1.0e-3){
         if(obj>obj0){
           progressMade = true;
           lastGood = par_tmp_;
@@ -159,6 +307,7 @@ class initialPointSolver{
 #endif
           if(progressMade){
             q_curr_ = lastGood;
+            ode_.setCurrentQ(q_curr_);
             return(0);
           } else {
             return(1);
@@ -175,6 +324,7 @@ class initialPointSolver{
         std::cout << "bad function eval in bisection, exiting" << std::endl;
         if(progressMade){
           q_curr_ = lastGood;
+          ode_.setCurrentQ(q_curr_);
           return(0);
         } else {
           return(1);
@@ -185,6 +335,7 @@ class initialPointSolver{
         std::cout << "exit: interval" << std::endl;
         if(progressMade){
           q_curr_ = lastGood;
+          ode_.setCurrentQ(q_curr_);
           return(0);
         } else {
           return(1);
@@ -199,6 +350,7 @@ class initialPointSolver{
     // bisection loop ended before regular exit
     if(progressMade){
       q_curr_ = lastGood;
+      ode_.setCurrentQ(q_curr_);
       return(0);
     } else {
       return(1);
@@ -211,23 +363,24 @@ class initialPointSolver{
 #ifdef _IPS_DEBUG_
     std::cout << "initial generated \n " << rk_.firstGenerated() << std::endl;
 #endif
-    Eigen::VectorXd lastGen,firstGen;
+    Eigen::VectorXd lastGen(ode_.generatedDim()),firstGen;
 
     size_t nstep = 0;
     size_t nacc = 0;
 
-    bool stepGood,flag;
+    bool stepGood,flag,noRoot;
     while(nstep <= _IPS_MAX_STEPS_PER_LEG_){
       stepGood = false;
       while(nstep <= _IPS_MAX_STEPS_PER_LEG_){
         flag = rk_.step();
+        nstep++;
         if(flag){ // no numerical problems
           if(rk_.stepErr_<1.0){
             nacc++;
             stepGood = true;
             break;
           } else {
-            rk_.eps_ *= std::max(0.2,0.9*std::pow(rk_.stepErr_,-0.2));
+            rk_.eps_ *= std::max(0.2,0.9*std::pow(rk_.stepErr_,-0.333));
           }
         } else { // current step returned NaNs
           rk_.eps_ *= 0.1;
@@ -244,20 +397,26 @@ class initialPointSolver{
         eflag = 2;
         break;
       }
-/*
-      if(nacc>=100){
-        std::cout << "max steps, nacc = " << nacc << std::endl;
-        break;
-      }
-*/
-      // check progress
+
+      //std::cout << "step accepted, eps = " << rk_.eps_ << std::endl;
+
+
+      // check if collisions occurred
+      rootInfo ri = rk_.eventRootSolver();
+      //std::cout << ri << std::endl;
+
+
+
       firstGen = rk_.firstGenerated();
-      lastGen = rk_.lastGenerated();
+      rk_.denseGenerated_Level(ri.rootTime_,lastGen);
+
+      // do not stop short if an event occurred
+      noRoot = ri.rootDim_<0;
 
 
-
+      // check progress
       // rescale momentum if kinetic energy is too large
-      if(lastGen(1)>kinEnergyThresh_){
+      if(noRoot && lastGen(1)>kinEnergyThresh_){
 #ifdef _IPS_DEBUG_
         std::cout << "kinetic energy too large, nacc = " << nacc << std::endl;
 #endif
@@ -266,7 +425,7 @@ class initialPointSolver{
         break;
       }
 
-      if(lastGen(2)<0.0 && nacc>5){
+      if(noRoot && lastGen(2)<0.0 && nacc>5){
 #ifdef _IPS_DEBUG_
         std::cout << "negative potential energy time derivative , nacc = " << nacc << std::endl;
 #endif
@@ -275,7 +434,7 @@ class initialPointSolver{
         break;
       }
 
-      if(lastGen(3)<0.0 && nacc>2){
+      if(noRoot && lastGen(3)<0.0 && nacc>2){
 #ifdef _IPS_DEBUG_
         std::cout << "NUT criterion , nacc = " << nacc << std::endl;
 #endif
@@ -289,7 +448,16 @@ class initialPointSolver{
 
       // prepare for next integration step
 
+      if(ri.rootDim_>=0){
+        rk_.event(ri);
+      }
+
+
+
       rk_.prepareNext();
+
+      //std::cout << "first event root\n" << rk_.firstEventRoot() << std::endl;
+
       updateEps();
 
 
@@ -301,56 +469,34 @@ class initialPointSolver{
 public:
   Eigen::VectorXd bestQ(){return q_curr_;}
   void seed(const size_t s){r_.seed(s);}
-  inline size_t dim() const {return 2*dim_;}
-  inline size_t generatedDim() const {return 5;}
-  inline size_t eventRootDim() const {return 1;}
-
-  void ode(const double time,
-           const Eigen::VectorXd &y, // y = (q,p,lambda)
-           Eigen::VectorXd &f,
-           Eigen::VectorXd &gen,
-           Eigen::VectorXd &diagInt){
-    // qdot
-    f.head(dim_) = y.segment(dim_,dim_);
-    // pdot
-    par_tmp_ = y.head(dim_);
-    gen.coeffRef(0) = targetGrad(); // log-density = negative potential energy
-    gen.coeffRef(1) = 0.5*y.segment(dim_,dim_).squaredNorm(); // kinetic energy
-    gen.coeffRef(2) = grad_tmp_.dot(y.segment(dim_,dim_)); // log-density time derivative
-    gen.coeffRef(3) = (y.head(dim_)-q_curr_).dot(y.segment(dim_,dim_)); // NUT-criterion
-    gen.coeffRef(4) = -gen.coeff(0) + gen.coeff(1); // hamiltonian
-    f.segment(dim_,dim_) = grad_tmp_;
-
-    if(diagInt.size()!=0) diagInt.resize(0);
-  }
-
-  inline Eigen::VectorXd eventRoot(const double time,
-                                   const odeState &state,
-                                   const Eigen::VectorXd &f) const {
-    Eigen::VectorXd ret(eventRootDim());
-    ret.setConstant(1.0);
-    return(ret);
-  }
 
 
 
 
-  initialPointSolver(targetType &t, const size_t dim, const size_t dimGen) : t_(&t), mdl_(mtd_), dim_(dim), dimGen_(dimGen), mon_(6) {
-    rk_.setup(*this);
+  initialPointSolver(targetType &t,
+                     const size_t dim,
+                     const size_t dimGen,
+                     const amt::constraintInfo& ci) : ode_(t,dim,dimGen,ci), dim_(dim),dimGen_(dimGen), mon_(6) {
+    rk_.setup(ode_);
     rk_.absTol_ = 1.0e-3;
     rk_.relTol_ = 1.0e-3;
     par_tmp_.resize(dim);
     grad_tmp_.resize(dim);
     y_tmp_.resize(2*dim);
     kinEnergyThresh_ = 0.5*(static_cast<double>(dim) +  _IPS_NSTDS_*sqrt(2.0*static_cast<double>(dim)));
+    //std::cout << "IPS constructor" << std::endl;
+    //ode_.specialRoots(sps_);
+
+
   }
 
 
 
   bool run(const Eigen::VectorXd& q0){
     q_curr_ = q0;
+    ode_.setCurrentQ(q_curr_);
     par_tmp_ = q0;
-    targetGrad();
+    ode_.targetGradient(par_tmp_,grad_tmp_);
     double gnorm = grad_tmp_.norm();
     if(gnorm>1.0e-6){
       y_tmp_.tail(dim_) = (std::sqrt(static_cast<double>(dim_))/gnorm)*grad_tmp_;
@@ -390,6 +536,7 @@ public:
         // kinetric energy reduction
         y_tmp_ = rk_.lastState().y;
         q_curr_ = y_tmp_.head(dim_);
+        ode_.setCurrentQ(q_curr_);
         oret = optimize();
 
         if(oret==0){
@@ -412,6 +559,7 @@ public:
       } else if(iret==2){
         y_tmp_ = rk_.firstState().y; // note first state as last step was not done
         q_curr_ = y_tmp_.head(dim_);
+        ode_.setCurrentQ(q_curr_);
         r_.rnorm(y_tmp_.tail(dim_));
 
       } else {
@@ -419,6 +567,7 @@ public:
         // regular momentum updated
         y_tmp_ = rk_.lastState().y;
         q_curr_ = y_tmp_.head(dim_);
+        ode_.setCurrentQ(q_curr_);
         r_.rnorm(y_tmp_.tail(dim_));
       }
       firstEvalOK = rk_.setInitialState(odeState(y_tmp_));
