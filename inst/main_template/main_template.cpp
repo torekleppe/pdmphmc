@@ -63,10 +63,16 @@ int main(int argc, char *argv[]){
 
   // calculate constraint information
   constraintInfo ci;
-  ci.compute<model,metricTensorDummy>(m,q0);
+  bool constrOK = ci.compute<model,metricTensorDummy>(m,q0);
+
+  if(!constrOK){
+    std::cout << "problem with constraints, exiting" << std::endl;
+    return(14);
+  }
 
   size_t dim = modelSymb.dim();
   size_t dimGen = modelSymb.dimGen();
+
 
 
 
@@ -83,6 +89,9 @@ int main(int argc, char *argv[]){
              diagnostics> sampler;
 
   sampler.setup(m,dim,dimGen,ci);
+
+  std::cout << "sampler setup done" << std::endl;
+
   sampler.setPrintPrefix("chain #" + std::to_string(chain_id));
 
 
@@ -160,9 +169,11 @@ int main(int argc, char *argv[]){
 
 
 #ifndef _NO_IPS_
+  std::cout << "IPS start" << std::endl;
   initialPointSolver<modelSpec__> ips(m,dim,dimGen,ci);
   ips.seed(seed+1000*chain_id+13);
   if(ips.run(q0)) q0 = ips.bestQ();
+  std::cout << "IPS end" << std::endl;
 #endif
 
 

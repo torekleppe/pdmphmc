@@ -264,6 +264,7 @@ public:
       //if(step_.hasEventRootSolver()){
       rootOut = step_.eventRootSolver();
 
+
 #ifdef __DEBUG__
       std::cout << rootOut << std::endl;
 #endif

@@ -19,6 +19,7 @@ public:
   }
   inline void toParJacTransposed(Eigen::VectorXd &var) const {}
   inline void toParJac(Eigen::VectorXd &var) const {}
+  inline const Eigen::VectorXd toParJacDiag() const {return Eigen::VectorXd::Ones(dim_);}
   inline void toParInverseJacTransposed(Eigen::VectorXd &var) const {}
   template <class varType>
   inline void toParInverseJac(Eigen::Matrix<varType,Eigen::Dynamic,1> &var) const {}
@@ -120,6 +121,7 @@ public:
   void toParJac(Eigen::VectorXd &var) const {
     var.array() *= L_.array();
   }
+  inline const Eigen::VectorXd toParJacDiag() const {return L_;}
   void toParInverseJacTransposed(Eigen::VectorXd &var) const {
     var.array() /= L_.array();
   }

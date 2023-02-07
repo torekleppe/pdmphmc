@@ -26,10 +26,10 @@ class IPSode{
   size_t dimGen_;
   amt::constraintInfo ci_;
   specialRootSpec sps_;
-  Eigen::VectorXd linJacSNorms_;
+  Eigen::VectorXd linJacSNorms_,splinJacSNorms_;
   //specialRootSpec sps_;
   Eigen::VectorXd par_tmp_,grad_tmp_,q_curr_;
-
+  Eigen::VectorXd L1tmp_,L2tmp_;
 
   inline double targetGrad(){
     mdl_.setIndependent(par_tmp_,dimGen_);
@@ -83,6 +83,40 @@ class IPSode{
       linJacSNorms_.resize(ci_.linJac_.rows());
       for(size_t i=0;i<ci_.linJac_.rows();i++) linJacSNorms_.coeffRef(i) = ci_.linJac_.row(i).squaredNorm();
     }
+    if(ci_.numspLin_>0){
+      sps_.spLinRootJac_ = ci_.splinJac_;
+      sps_.spLinRootJac_.setCols(dim());
+      sps_.spLinRootConst_ = ci_.splinConst_;
+      splinJacSNorms_.resize(ci_.splinJac_.rows());
+      for(size_t i=0;i<ci_.splinJac_.rows();i++) splinJacSNorms_.coeffRef(i) = ci_.splinJac_.rowSquaredNorm(i);
+    }
+
+    if(ci_.splinL1Jac_.size()>0){
+      for(size_t i=0;i<ci_.splinL1Jac_.size();i++){
+        sps_.spLinL1RootJac_.push_back(ci_.splinL1Jac_[i]);
+        sps_.spLinL1RootJac_.back().setCols(dim());
+        sps_.spLinL1RootConst_.push_back(ci_.splinL1Const_[i]);
+        sps_.spLinL1RootRhs_.push_back(ci_.splinL1Rhs_.coeff(i));
+      }
+    }
+
+    if(ci_.splinL2Jac_.size()>0){
+      for(size_t i=0;i<ci_.splinL2Jac_.size();i++){
+        sps_.spLinL2RootJac_.push_back(ci_.splinL2Jac_[i]);
+        sps_.spLinL2RootJac_.back().setCols(dim());
+        sps_.spLinL2RootConst_.push_back(ci_.splinL2Const_[i]);
+        sps_.spLinL2RootRhs_.push_back(ci_.splinL2Rhs_.coeff(i));
+      }
+    }
+
+    if(ci_.splinFJac_.size()>0){
+      sps_.spLinFRootFun_ = ci_.splinFfun_;
+      for(size_t i=0;i<ci_.splinFJac_.size();i++){
+        sps_.spLinFRootJac_.push_back(ci_.splinFJac_[i]);
+        sps_.spLinFRootJac_.back().setCols(dim());
+        sps_.spLinFRootConst_.push_back(ci_.splinFConst_[i]);
+      }
+    }
   }
 
 public:
@@ -113,6 +147,8 @@ public:
     gen.coeffRef(3) = (y.head(dim_)-q_curr_).dot(y.segment(dim_,dim_)); // NUT-criterion
     gen.coeffRef(4) = -gen.coeff(0) + gen.coeff(1); // hamiltonian
     f.segment(dim_,dim_) = grad_tmp_;
+
+
 
     if(diagInt.size()!=0) diagInt.resize(0);
   }
@@ -147,29 +183,57 @@ public:
              const Eigen::VectorXd &f,
              odeState &newState){
     oldState.copyTo(newState);
-     if(rootOut.rootType_==0){
-       // nonLinear root
-       par_tmp_ = oldState.y.head(dim_);
-       double constr = constraintGrad(rootOut.rootDim_);
-       std::cout << "constraint at root " << constr << std::endl;
-       double fac = 2.0*grad_tmp_.dot(oldState.y.segment(dim_,dim_))/grad_tmp_.squaredNorm();
-       std::cout << "fac " << fac << std::endl;
-       if(fac<0.0) {
-         newState.y.segment(dim_,dim_) -= fac*grad_tmp_;
-       } else {
-         std::cout << "nonlin: trajectory passing into allowed region!!!" << std::endl;
-       }
-     } else if(rootOut.rootType_==1) {
-        double fac = 2.0*ci_.linJac_.row(rootOut.rootDim_).dot(oldState.y.segment(dim_,dim_))/linJacSNorms_.coeff(rootOut.rootDim_);
-       std::cout << "fac " << fac << std::endl;
-       if(fac<0.0) {
-         newState.y.segment(dim_,dim_) -= fac*ci_.linJac_.row(rootOut.rootDim_);
-       } else {
+    if(rootOut.rootType_==0){
+      // nonLinear root
+      par_tmp_ = oldState.y.head(dim_);
+      double constr = constraintGrad(rootOut.rootDim_);
+      std::cout << "constraint at root " << constr << std::endl;
+      double fac = 2.0*grad_tmp_.dot(oldState.y.segment(dim_,dim_))/grad_tmp_.squaredNorm();
+      std::cout << "fac " << fac << std::endl;
+      if(fac<0.0) {
+        newState.y.segment(dim_,dim_) -= fac*grad_tmp_;
+      } else {
+        std::cout << "nonlin: trajectory passing into allowed region!!!" << std::endl;
+      }
+    } else if(rootOut.rootType_==1) {
+      double fac = 2.0*ci_.linJac_.row(rootOut.rootDim_).dot(oldState.y.segment(dim_,dim_))/linJacSNorms_.coeff(rootOut.rootDim_);
+      //std::cout << "fac " << fac << std::endl;
+      if(fac<0.0) {
+        newState.y.segment(dim_,dim_) -= fac*ci_.linJac_.row(rootOut.rootDim_);
+      } else {
         std::cout << "lin: trajectory passing into allowed region!!!" << std::endl;
-       }
-     } else {
-       std::cout << "special roots type " << rootOut.rootType_ << " not implemented in IPSode" << std::endl;
-     }
+      }
+    } else if(rootOut.rootType_==2){
+      double fac = 2.0*sps_.spLinRootJac_.rowHeadDot(rootOut.rootDim_,oldState.y.segment(dim_,dim_))/splinJacSNorms_.coeff(rootOut.rootDim_);
+      //std::cout << "fac sparse " << fac << std::endl;
+      if(fac<0.0) {
+        sps_.spLinRootJac_.scaledRowHeadIncrement(rootOut.rootDim_,-fac,newState.y.segment(dim_,dim_));
+      } else {
+        std::cout << "sparse lin: trajectory passing into allowed region!!!" << std::endl;
+      }
+    } else if(rootOut.rootType_==3){
+      L1tmp_ = (-(ci_.splinL1Jac_[rootOut.rootDim_]*oldState.y.head(dim_) + ci_.splinL1Const_[rootOut.rootDim_])).array().sign().matrix();
+      double fac = sps_.spLinL1RootJac_[rootOut.rootDim_].splinStandardizedCollisionMomentumUpdate(L1tmp_,newState.y.segment(dim_,dim_));
+      //std::cout << "L1 norm at event : " << (sps_.spLinL1RootJac_[rootOut.rootDim_]*oldState.y + sps_.spLinL1RootConst_[rootOut.rootDim_]).dot(L1tmp_) << std::endl;
+      //std::cout << "L1 fac " << fac <<  std::endl;
+      if(fac>0.0)  std::cout << "sparse lin L1: trajectory passing into allowed region!!!" << std::endl;
+    } else if(rootOut.rootType_==4){
+      L2tmp_ = (-((ci_.splinL2Jac_[rootOut.rootDim_]*oldState.y.head(dim_) + ci_.splinL2Const_[rootOut.rootDim_])));
+      double fac = sps_.spLinL2RootJac_[rootOut.rootDim_].splinStandardizedCollisionMomentumUpdate(L2tmp_,newState.y.segment(dim_,dim_));
+      //std::cout << "L2 norm at event : " << sqrt(L2tmp_.squaredNorm()) << std::endl;
+      //std::cout << "L2 fac " << fac <<  std::endl;
+      if(fac>0.0)  std::cout << "sparse lin L2: trajectory passing into allowed region!!!" << std::endl;
+    } else if(rootOut.rootType_==5){
+      //std::cout << "event : " << rootOut.auxInfo_ << std::endl;
+      double fac = sps_.spLinFRootJac_[rootOut.rootDim_].splinStandardizedCollisionMomentumUpdate(rootOut.auxInfo_,newState.y.segment(dim_,dim_));
+      //std::cout << "event: fac: " << fac << std::endl;
+      if(fac>0.0)  std::cout << "sparse lin fun: trajectory passing into allowed region!!!" << std::endl;
+
+
+    } else {
+      std::cout << "special roots type " << rootOut.rootType_ << " not implemented in IPSode" << std::endl;
+      throw(12);
+    }
 
     return(true);
   }
@@ -398,13 +462,15 @@ class initialPointSolver{
         break;
       }
 
-      //std::cout << "step accepted, eps = " << rk_.eps_ << std::endl;
+      std::cout << "step accepted, eps = " << rk_.eps_ << std::endl;
+
 
 
       // check if collisions occurred
       rootInfo ri = rk_.eventRootSolver();
-      //std::cout << ri << std::endl;
+      std::cout << ri << std::endl;
 
+      //throw(1);
 
 
       firstGen = rk_.firstGenerated();
@@ -477,17 +543,17 @@ public:
                      const size_t dim,
                      const size_t dimGen,
                      const amt::constraintInfo& ci) : ode_(t,dim,dimGen,ci), dim_(dim),dimGen_(dimGen), mon_(6) {
+
     rk_.setup(ode_);
     rk_.absTol_ = 1.0e-3;
     rk_.relTol_ = 1.0e-3;
     par_tmp_.resize(dim);
     grad_tmp_.resize(dim);
-    y_tmp_.resize(2*dim);
+    y_tmp_.resize(ode_.dim());
+    y_tmp_.setZero();
     kinEnergyThresh_ = 0.5*(static_cast<double>(dim) +  _IPS_NSTDS_*sqrt(2.0*static_cast<double>(dim)));
-    //std::cout << "IPS constructor" << std::endl;
+    //std::cout << "IPS constructor done" << std::endl;
     //ode_.specialRoots(sps_);
-
-
   }
 
 
@@ -499,9 +565,9 @@ public:
     ode_.targetGradient(par_tmp_,grad_tmp_);
     double gnorm = grad_tmp_.norm();
     if(gnorm>1.0e-6){
-      y_tmp_.tail(dim_) = (std::sqrt(static_cast<double>(dim_))/gnorm)*grad_tmp_;
+      y_tmp_.segment(dim_,dim_) = (std::sqrt(static_cast<double>(dim_))/gnorm)*grad_tmp_;
     } else {
-      r_.rnorm(y_tmp_.tail(dim_));
+      r_.rnorm(y_tmp_.segment(dim_,dim_));
     }
     y_tmp_.head(dim_) = q0;
     bool firstEvalOK = rk_.setInitialState(odeState(y_tmp_));
@@ -515,17 +581,19 @@ public:
     int oret;
 
     for(size_t l=0;l<200; l++){
-
+      //std::cout << "l : " << l << std::endl;
       if(mon_.hasSufficientData()){
         if(mon_.isStable_regression()){
           std::cout << "initialPointSolver done" << std::endl;
           return(true);
         }
       }
-
+      //std::cout << "integrate:" << std::endl;
       iret = integrate();
+      //std::cout << "integrate exit flag: " << iret << std::endl;
       if(iret<0){
         // do optimization step
+        //std::cout << "optimize:" << std::endl;
         optimize();
         // reset to last good point and, refresh momentum and try again
         y_tmp_.head(dim_) = q_curr_;

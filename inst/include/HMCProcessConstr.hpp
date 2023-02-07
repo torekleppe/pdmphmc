@@ -147,7 +147,7 @@ private:
   Eigen::VectorXd q_tmp_,qdot_tmp_,p_tmp_,grad_tmp_,gen_tmp_,par_tmp_;
   Eigen::VectorXd y_tmp_;
   Eigen::VectorXd normal_vec_;
-  Eigen::VectorXd linJacSNorms_;
+  Eigen::VectorXd linJacSNorms_,splinJacSNorms_;
   Eigen::VectorXd linJacTmp_;
 
   // adaptation related storage
@@ -211,7 +211,9 @@ private:
          sps_.linRootJac_.cols()!=dim()){
         sps_.linRootJac_.resize(ci_.linJac_.rows(),dim());
         sps_.linRootJac_.setZero();
+        linJacSNorms_.resize(ci_.linJac_.rows());
       }
+
       //sps_.linRootJac_.leftCols(ci_.linJac_.cols()) = ci_.linJac_;
       for(size_t i=0;i<sps_.linRootJac_.rows();i++){
         linJacTmp_ = ci_.linJac_.row(i);
@@ -219,9 +221,81 @@ private:
         sps_.linRootJac_.row(i).head(dim_) = linJacTmp_;
       }
       sps_.linRootConst_ = ci_.linConst_ + ci_.linJac_*TM_.getMu();
-      linJacSNorms_.resize(ci_.linJac_.rows());
+
       for(size_t i=0;i<ci_.linJac_.rows();i++) linJacSNorms_.coeffRef(i) = sps_.linRootJac_.row(i).head(dim_).squaredNorm();
     }
+    if(ci_.numspLin_>0){
+      if(sps_.spLinRootJac_.rows()!=ci_.splinJac_.rows()){
+        sps_.spLinRootJac_ = ci_.splinJac_;
+        sps_.spLinRootJac_.setCols(dim());
+        splinJacSNorms_.resize(ci_.splinJac_.rows());
+      } else {
+        sps_.spLinRootJac_.cpValsFrom(ci_.splinJac_);
+      }
+      sps_.spLinRootJac_.rightMultiplyDiag(TM_.toParJacDiag());
+      sps_.spLinRootConst_ = ci_.splinConst_ + ci_.splinJac_*TM_.getMu();
+      for(size_t i=0;i<ci_.splinJac_.rows();i++) splinJacSNorms_.coeffRef(i) = sps_.spLinRootJac_.rowSquaredNorm(i);
+    }
+
+    if(ci_.splinL1Jac_.size()>0){
+      if(sps_.spLinL1RootJac_.size()==0){
+        for(size_t i=0;i<ci_.splinL1Jac_.size();i++){
+          sps_.spLinL1RootJac_.push_back(ci_.splinL1Jac_[i]);
+          sps_.spLinL1RootJac_.back().setCols(dim());
+          sps_.spLinL1RootConst_.push_back(ci_.splinL1Const_[i]);
+          sps_.spLinL1RootRhs_.push_back(ci_.splinL1Rhs_[i]);
+        }
+      } else {
+        for(size_t i=0;i<ci_.splinL1Jac_.size();i++){
+          sps_.spLinL1RootJac_[i].cpValsFrom(ci_.splinL1Jac_[i]);
+        }
+      }
+      for(size_t i=0;i<ci_.splinL1Jac_.size();i++){
+        sps_.spLinL1RootJac_[i].rightMultiplyDiag(TM_.toParJacDiag());
+        sps_.spLinL1RootConst_[i] = ci_.splinL1Const_[i] + ci_.splinL1Jac_[i]*TM_.getMu();
+      }
+    }
+
+    if(ci_.splinL2Jac_.size()>0){
+      if(sps_.spLinL2RootJac_.size()==0){
+        for(size_t i=0;i<ci_.splinL2Jac_.size();i++){
+          sps_.spLinL2RootJac_.push_back(ci_.splinL2Jac_[i]);
+          sps_.spLinL2RootJac_.back().setCols(dim());
+          sps_.spLinL2RootConst_.push_back(ci_.splinL2Const_[i]);
+          sps_.spLinL2RootRhs_.push_back(ci_.splinL2Rhs_[i]);
+        }
+      } else {
+        for(size_t i=0;i<ci_.splinL2Jac_.size();i++){
+          sps_.spLinL2RootJac_[i].cpValsFrom(ci_.splinL2Jac_[i]);
+        }
+      }
+      for(size_t i=0;i<ci_.splinL2Jac_.size();i++){
+        sps_.spLinL2RootJac_[i].rightMultiplyDiag(TM_.toParJacDiag());
+        sps_.spLinL2RootConst_[i] = ci_.splinL2Const_[i] + ci_.splinL2Jac_[i]*TM_.getMu();
+      }
+    }
+
+
+    if(ci_.splinFJac_.size()>0){
+      if(sps_.spLinFRootJac_.size()==0){
+        for(size_t i=0;i<ci_.splinFJac_.size();i++){
+          sps_.spLinFRootJac_.push_back(ci_.splinFJac_[i]);
+          sps_.spLinFRootJac_.back().setCols(dim());
+          sps_.spLinFRootConst_.push_back(ci_.splinFConst_[i]);
+        }
+        sps_.spLinFRootFun_ = ci_.splinFfun_;
+      } else {
+        for(size_t i=0;i<ci_.splinFJac_.size();i++){
+          sps_.spLinFRootJac_[i].cpValsFrom(ci_.splinFJac_[i]);
+        }
+      }
+      for(size_t i=0;i<ci_.splinFJac_.size();i++){
+        sps_.spLinFRootJac_[i].rightMultiplyDiag(TM_.toParJacDiag());
+        sps_.spLinFRootConst_[i] = ci_.splinFConst_[i] + ci_.splinFJac_[i]*TM_.getMu();
+      }
+    }
+
+
 
   }
 
@@ -344,6 +418,7 @@ public:
                Id_mass_);
 
 
+
     // diagInt : used for adapting the mass matrix
     if(warmup_ && TM_.allowsAdaptation()){
       TM_.monitor(q_tmp_, // q
@@ -368,15 +443,12 @@ public:
     if(p_tmp_.size()!=dim_) p_tmp_.resize(dim_);
     r_.rnorm(p_tmp_);
 
-    /*
-     * for testing, remove:
-
-     p_tmp_(0) = -1.0;
-     p_tmp_(1) = 1.0;
-     p_tmp_(2) = 0.5;
-     */
     s0.y.segment(dim_,dim_) = p_tmp_;
     s0.y(2*dim_) = 0.0;
+
+
+
+
     q_last_event_ = s0.y.head(dim_);
     nut_time_ = 0.0;
     u_ = -log(r_.runif());
@@ -529,9 +601,38 @@ public:
         std::cout << "lin: trajectory passing into allowed region!!!" << std::endl;
         std::cout << rootOut << std::endl;
       }
+    } else if(rootOut.rootType_==2){
+      double fac = 2.0*sps_.spLinRootJac_.rowHeadDot(rootOut.rootDim_,oldState.y.segment(dim_,dim_))/splinJacSNorms_.coeff(rootOut.rootDim_);
+      //std::cout << "fac sparse " << fac << std::endl;
+      if(fac<0.0) {
+        sps_.spLinRootJac_.scaledRowHeadIncrement(rootOut.rootDim_,-fac,newState.y.segment(dim_,dim_));
+      } else {
+        std::cout << "sparse lin: trajectory passing into allowed region!!!" << std::endl;
+      }
+    } else if(rootOut.rootType_==3){
+      double fac = sps_.spLinL1RootJac_[rootOut.rootDim_].splinStandardizedCollisionMomentumUpdate(
+        (-(sps_.spLinL1RootJac_[rootOut.rootDim_]*oldState.y + sps_.spLinL1RootConst_[rootOut.rootDim_])).array().sign().matrix(),
+        newState.y.segment(dim_,dim_));
+      if(fac>0.0) std::cout << "sparse lin L1: trajectory passing into allowed region!!!" << std::endl;
 
-    } else {
+    } else if(rootOut.rootType_==4){
+      double fac = sps_.spLinL2RootJac_[rootOut.rootDim_].splinStandardizedCollisionMomentumUpdate(
+        (-(sps_.spLinL2RootJac_[rootOut.rootDim_]*oldState.y + sps_.spLinL2RootConst_[rootOut.rootDim_])),
+        newState.y.segment(dim_,dim_));
+      if(fac>0.0) {
+        std::cout << "sparse lin L2: trajectory passing into allowed region!!!, fac = " << fac << std::endl;
+      }
+    } else if(rootOut.rootType_==5){
+      double fac = sps_.spLinFRootJac_[rootOut.rootDim_].splinStandardizedCollisionMomentumUpdate(
+        rootOut.auxInfo_,
+        newState.y.segment(dim_,dim_));
+      if(fac>0.0) {
+        std::cout << "sparse lin Fun: trajectory passing into allowed region!!!, fac = " << fac << std::endl;
+        throw(1);
+      }
+    }else {
       std::cout << "root type" << rootOut.rootType_ << " not implemented yet" << std::endl;
+      throw(12);
     }
 
     (*diag_).push("lambda",lambda_.getPars());

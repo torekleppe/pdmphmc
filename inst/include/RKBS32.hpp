@@ -12,6 +12,11 @@
 #define _EVENTROOTSOLVER_TOL_ 1.0e-10
 #endif
 
+#ifndef _SPLINF_GRID_SIZE_
+#define _SPLINF_GRID_SIZE_ 8
+#endif
+
+
 template <class _ode_type_>
 class RKBS32{
 
@@ -106,21 +111,53 @@ class RKBS32{
     return(rootInfo(ret,0,whichDim));
   }
 
-  Eigen::VectorXd Ty0_,Ty1_,Tf0_,Tf1_,Tydif_,Ta_,Tb_,proots_;
+  Eigen::VectorXd Sy0_,Sy1_,Sf0_,Sf1_,Sydif_,Sa_,Sb_;
+  inline rootInfo splinRootSolver(){
+    double ret = eps_;
+    int whichDim = -1;
+    //std::cout << "splinRootSolver" << std::endl;
+    if((*ode_).spr().spLinRootJac_.rows()<1) return(rootInfo(ret,2,whichDim));
+    (*ode_).spr().spLinRootJac_.rightMultiplyVec(ys_.col(0),Sy0_);
+    Sy0_ += (*ode_).spr().spLinRootConst_;
+    (*ode_).spr().spLinRootJac_.rightMultiplyVec(ys_.col(3),Sy1_);
+    Sy1_ +=(*ode_).spr().spLinRootConst_;
+    //std::cout << "Sy0\n" << Sy0_ << std::endl;
+    //std::cout << "Sy1\n" << Sy1_ << std::endl;
+    Sf0_ = eps_*((*ode_).spr().spLinRootJac_*force_.col(0));
+    Sf1_ = eps_*((*ode_).spr().spLinRootJac_*force_.col(3));
+    Sydif_ = Sy0_-Sy1_;
+    Sa_ = Sf0_ + Sf1_ + 2.0*Sydif_;
+    Sb_ = -(2.0*Sf0_ + Sf1_ + 3.0*Sydif_);
+    double cand,dev,x;
+    for(int i=0;i<Sy0_.size();i++){
+      cand = eps_*numUtils::smallestCubicPolyRootsInInterval(1.0e-12,1.0,
+                                                             Sa_.coeff(i),
+                                                             Sb_.coeff(i),
+                                                             Sf0_.coeff(i),
+                                                             Sy0_.coeff(i));
+      if(cand<ret){
+        ret = cand;
+        whichDim = i;
+      }
+    }
+    return(rootInfo(ret,2,whichDim));
+  }
 
+  Eigen::VectorXd Ty0_,Ty1_,Tf0_,Tf1_,Tydif_,Ta_,Tb_;
   inline rootInfo linRootSolver(){
     double ret = eps_;
     int whichDim = -1;
+    //std::cout << "linRootSolver" << std::endl;
     if((*ode_).spr().linRootJac_.rows()<1) return(rootInfo(ret,1,whichDim));
 
     Ty0_ = (*ode_).spr().linRootJac_*ys_.col(0)+(*ode_).spr().linRootConst_;
     Ty1_ = (*ode_).spr().linRootJac_*ys_.col(3)+(*ode_).spr().linRootConst_;
     //std::cout << "Ty0\n" << Ty0_ << std::endl;
     //std::cout << "Ty1\n" << Ty1_ << std::endl;
-    Tf0_ = eps_*(*ode_).spr().linRootJac_*force_.col(0);
-    Tf1_ = eps_*(*ode_).spr().linRootJac_*force_.col(3);
+    Tf0_ = eps_*((*ode_).spr().linRootJac_*force_.col(0));
+    Tf1_ = eps_*((*ode_).spr().linRootJac_*force_.col(3));
     Tydif_ = Ty0_-Ty1_;
-    Ta_ = Tf0_ + Tf1_ + 2*Tydif_;
+    Ta_ = Tf0_ + Tf1_ + 2.0*Tydif_;
     Tb_ = -(2.0*Tf0_ + Tf1_ + 3.0*Tydif_);
     double cand,dev,x;
     for(int i=0;i<Ty0_.size();i++){
@@ -135,6 +172,286 @@ class RKBS32{
       }
     }
     return(rootInfo(ret,1,whichDim));
+  }
+
+
+  std::vector<Eigen::VectorXd> L1y0_,L1y1_,L1f0_,L1f1_,L1ydif_,L1a_,L1b_,L1sign_;
+  Eigen::VectorXd L1flipTimes_;
+  Eigen::VectorXi L1flipInds_;
+  inline rootInfo splinL1RootSolver(){
+    double ret = eps_;
+    int whichDim = -1;
+    //std::cout << "splinL1RootSolver" << std::endl;
+    if((*ode_).spr().spLinL1RootJac_.size()<1) return(rootInfo(ret,3,whichDim));
+
+    //std::cout << "non-trivial special root" << std::endl;
+    if(L1y0_.size()==0){
+      for(size_t i=0;i<(*ode_).spr().spLinL1RootJac_.size();i++){
+        L1y0_.emplace_back((*ode_).spr().spLinL1RootConst_[i].size());
+        L1y1_.emplace_back((*ode_).spr().spLinL1RootConst_[i].size());
+        L1f0_.emplace_back((*ode_).spr().spLinL1RootConst_[i].size());
+        L1f1_.emplace_back((*ode_).spr().spLinL1RootConst_[i].size());
+        L1ydif_.emplace_back((*ode_).spr().spLinL1RootConst_[i].size());
+        L1a_.emplace_back((*ode_).spr().spLinL1RootConst_[i].size());
+        L1b_.emplace_back((*ode_).spr().spLinL1RootConst_[i].size());
+        L1sign_.emplace_back((*ode_).spr().spLinL1RootConst_[i].size());
+      }
+    }
+    int nSignFlip;
+    double tl,tu,teval,cand;
+    // loop over the different constraints
+    for(size_t i=0;i<(*ode_).spr().spLinL1RootJac_.size();i++){
+      L1y0_[i] = (*ode_).spr().spLinL1RootJac_[i]*ys_.col(0)+(*ode_).spr().spLinL1RootConst_[i];
+      L1y1_[i] = (*ode_).spr().spLinL1RootJac_[i]*ys_.col(3)+(*ode_).spr().spLinL1RootConst_[i];
+
+      //std::cout << L1y0_[i] << std::endl;
+      //std::cout << L1y1_[i] << std::endl;
+
+      L1f0_[i] = eps_*((*ode_).spr().spLinL1RootJac_[i]*force_.col(0));
+      L1f1_[i] = eps_*((*ode_).spr().spLinL1RootJac_[i]*force_.col(3));
+      L1ydif_[i] = L1y0_[i]-L1y1_[i];
+      L1a_[i] = L1f0_[i] + L1f1_[i] + 2.0*L1ydif_[i];
+      L1b_[i] = -(2.0*L1f0_[i] + L1f1_[i] + 3.0*L1ydif_[i]);
+
+      nSignFlip = numUtils::sequenceOfCubicPolyRootsInInterval(0.0,
+                                                               1.0,
+                                                               L1a_[i],
+                                                                   L1b_[i],
+                                                                       L1f0_[i],
+                                                                            L1y0_[i],
+                                                                                 L1flipTimes_,
+                                                                                 L1flipInds_);
+
+      //std::cout << "n flips: " << nSignFlip << std::endl;
+      //std::cout << L1flipTimes_ << std::endl;
+      tl = 0.0;
+      for(size_t interval=0;interval<nSignFlip+1;interval++){
+        if(interval<nSignFlip){
+          tu = L1flipTimes_.coeff(interval);
+        } else {
+          tu = 1.0;
+        }
+        if(interval==0){
+          // evaluate sign at interior point at first
+          teval = 0.5*(tl+tu);
+          L1sign_[i] = (teval*(teval*(teval*L1a_[i] + L1b_[i]) + L1f0_[i]) +  L1y0_[i]).array().sign().matrix();
+        } else {
+          L1sign_[i].coeffRef(L1flipInds_.coeff(interval-1)) *= -1.0;
+        }
+
+        //std::cout << "interval searched : " << tl << " " << tu << std::endl;
+        //std::cout << L1sign_[i] << std::endl;
+
+        cand = numUtils::smallestCubicPolyRootsInInterval(std::max(1.0e-12,tl),tu,
+                                                          L1a_[i].dot(L1sign_[i]),
+                                                          L1b_[i].dot(L1sign_[i]),
+                                                          L1f0_[i].dot(L1sign_[i]),
+                                                          L1y0_[i].dot(L1sign_[i])-(*ode_).spr().spLinL1RootRhs_[i]);
+
+        if(cand <= tu){
+          //std::cout << "candidate constraint pass found: " << cand << std::endl;
+          if(cand*eps_ < ret){
+            // remove from here
+            //std::cout << "candidate is earliest found: " << std::endl;
+            //teval = cand;
+            //Eigen::VectorXd tmp = (teval*(teval*(teval*L1a_[i] + L1b_[i]) + L1f0_[i]) +  L1y0_[i]);
+            //std::cout << "state at pass:\n "  << tmp << std::endl;
+            //std::cout << "L1 norm at pass: " << tmp.array().abs().sum() << std::endl;
+            // to here
+            ret = cand*eps_;
+            whichDim = i;
+          }
+          break;
+        }
+        tl = tu;
+      } // end loop over interval within constraint
+    }// end loop over the different constraints
+    return(rootInfo(ret,3,whichDim));
+  }
+
+  std::vector<Eigen::VectorXd> L2y0_,L2y1_,L2f0_,L2f1_,L2ydif_,L2a_,L2b_;
+  std::vector<double> L2SqRhs_;
+  inline rootInfo splinL2RootSolver(){
+    double ret = eps_;
+    int whichDim = -1;
+    //std::cout << "splinL2RootSolver" << std::endl;
+    //dumpStep();
+    if((*ode_).spr().spLinL2RootJac_.size()<1) return(rootInfo(ret,4,whichDim));
+
+    //std::cout << "non-trivial special root" << std::endl;
+    if(L2y0_.size()==0){
+      for(size_t i=0;i<(*ode_).spr().spLinL2RootJac_.size();i++){
+        L2y0_.emplace_back((*ode_).spr().spLinL2RootConst_[i].size());
+        L2y1_.emplace_back((*ode_).spr().spLinL2RootConst_[i].size());
+        L2f0_.emplace_back((*ode_).spr().spLinL2RootConst_[i].size());
+        L2f1_.emplace_back((*ode_).spr().spLinL2RootConst_[i].size());
+        L2ydif_.emplace_back((*ode_).spr().spLinL2RootConst_[i].size());
+        L2a_.emplace_back((*ode_).spr().spLinL2RootConst_[i].size());
+        L2b_.emplace_back((*ode_).spr().spLinL2RootConst_[i].size());
+        L2SqRhs_.push_back(std::pow((*ode_).spr().spLinL2RootRhs_[i],2));
+
+      }
+    }
+
+    numUtils::Poly L2poly;
+    double cand;
+    // loop over the different constraints
+    for(size_t i=0;i<(*ode_).spr().spLinL2RootJac_.size();i++){
+      L2y0_[i] = (*ode_).spr().spLinL2RootJac_[i]*ys_.col(0)+(*ode_).spr().spLinL2RootConst_[i];
+      L2y1_[i] = (*ode_).spr().spLinL2RootJac_[i]*ys_.col(3)+(*ode_).spr().spLinL2RootConst_[i];
+
+      //std::cout << L1y0_[i] << std::endl;
+      //std::cout << L1y1_[i] << std::endl;
+
+      L2f0_[i] = eps_*((*ode_).spr().spLinL2RootJac_[i]*force_.col(0));
+      L2f1_[i] = eps_*((*ode_).spr().spLinL2RootJac_[i]*force_.col(3));
+      L2ydif_[i] = L2y0_[i]-L2y1_[i];
+      L2a_[i] = L2f0_[i] + L2f1_[i] + 2.0*L2ydif_[i];
+      L2b_[i] = -(2.0*L2f0_[i] + L2f1_[i] + 3.0*L2ydif_[i]);
+
+      L2poly = numUtils::sumOfSquaredCubics(L2a_[i],L2b_[i],L2f0_[i],L2y0_[i]);
+      L2poly.addConstant(-L2SqRhs_[i]);
+      cand = L2poly.smallestRootInInterval(1.0e-11,1.0);
+      if(eps_*cand<ret){
+        ret = eps_*cand;
+        whichDim = i;
+        /*
+         // remove from here
+         double teval = cand;
+         Eigen::VectorXd tmp = (teval*(teval*(teval*L2a_[i] + L2b_[i]) + L2f0_[i]) +  L2y0_[i]);
+         std::cout << "L2 norm at event : " << sqrt(tmp.squaredNorm()) << std::endl;
+         // to here
+         */
+      }
+    }
+    return(rootInfo(ret,4,whichDim));
+  }
+
+
+  std::vector<Eigen::VectorXd> Fy0_,Fy1_,Ff0_,Ff1_,Fydif_,Fa_,Fb_,Fgr_,Fgrad_;
+  Eigen::VectorXd Fgrid_,Fvals_;
+
+  inline rootInfo splinFRootSolver(){
+    double ret = eps_;
+    int whichDim = -1;
+    //std::cout << "splinFRootSolver" << std::endl;
+    //dumpStep();
+    //std::cout << (*ode_).spr() << std::endl;
+    if((*ode_).spr().spLinFRootJac_.size()<1) return(rootInfo(ret,5,whichDim));
+    //std::cout << "non-trivial special root" << std::endl;
+    if(Fy0_.size()==0){
+      for(size_t i=0;i<(*ode_).spr().spLinFRootJac_.size();i++){
+        Fy0_.emplace_back((*ode_).spr().spLinFRootConst_[i].size());
+        Fy1_.emplace_back((*ode_).spr().spLinFRootConst_[i].size());
+        Ff0_.emplace_back((*ode_).spr().spLinFRootConst_[i].size());
+        Ff1_.emplace_back((*ode_).spr().spLinFRootConst_[i].size());
+        Fydif_.emplace_back((*ode_).spr().spLinFRootConst_[i].size());
+        Fa_.emplace_back((*ode_).spr().spLinFRootConst_[i].size());
+        Fb_.emplace_back((*ode_).spr().spLinFRootConst_[i].size());
+        Fgr_.emplace_back((*ode_).spr().spLinFRootConst_[i].size());
+        Fgrad_.emplace_back((*ode_).spr().spLinFRootConst_[i].size());
+      }
+      Fgrid_.setLinSpaced(_SPLINF_GRID_SIZE_,1.0e-11,1.0);
+      Fvals_.resize(_SPLINF_GRID_SIZE_);
+    }
+    //std::cout << "alloc done" << std::endl;
+
+    double cand,lb,ub,lf,uf,teval,dev,der,fdif;
+    bool converged;
+    // loop over the different constraints
+    for(size_t i=0;i<(*ode_).spr().spLinFRootJac_.size();i++){
+      Fy0_[i] = (*ode_).spr().spLinFRootJac_[i]*ys_.col(0)+(*ode_).spr().spLinFRootConst_[i];
+      Fy1_[i] = (*ode_).spr().spLinFRootJac_[i]*ys_.col(3)+(*ode_).spr().spLinFRootConst_[i];
+
+      Ff0_[i] = eps_*((*ode_).spr().spLinFRootJac_[i]*force_.col(0));
+      Ff1_[i] = eps_*((*ode_).spr().spLinFRootJac_[i]*force_.col(3));
+      Fydif_[i] = Fy0_[i]-Fy1_[i];
+      Fa_[i] = Ff0_[i] + Ff1_[i] + 2.0*Fydif_[i];
+      Fb_[i] = -(2.0*Ff0_[i] + Ff1_[i] + 3.0*Fydif_[i]);
+
+      // done making polynomial, now search for sign flips on a grid:
+      ub = 2.0;
+      for(int g=0;g<_SPLINF_GRID_SIZE_;g++){
+        teval = Fgrid_.coeff(g);
+        Fgr_[i] = (teval*(teval*(teval*Fa_[i] + Fb_[i]) + Ff0_[i]) +  Fy0_[i]);
+       // std::cout << "Fgr: " << Fgr_[i].transpose() << std::endl;
+        Fvals_.coeffRef(g) = (*((*ode_).spr().spLinFRootFun_[i]))(Fgr_[i]);
+
+        if(! isfinite(Fvals_.coeff(g))){
+          std::cout << "splinF: numerical problems in functor # " << i << std::endl;
+          std::cout << "evaluates to " << Fvals_.coeff(g) << "for lhs=\n" << Fgr_[i] << std::endl;
+          throw(756);
+        }
+
+        if(g>0 && Fvals_.coeff(g-1)*Fvals_.coeff(g)<=0.0){
+
+          lb = Fgrid_.coeff(g-1);
+          ub = teval;
+          lf = Fvals_.coeff(g-1);
+          uf = Fvals_.coeff(g);
+          //std::cout << "found interval with sign flip: " << Fvals_.coeff(g-1) << " , " << Fvals_.coeff(g) << std::endl;
+          //std::cout << "lb: " << lb << " ub: " << ub << std::endl;
+          break;
+        }
+      }
+      //std::cout << Fvals_.transpose() << "\n" << Fgrid_.transpose() << std::endl;
+      converged = false;
+      if(ub<1.5){ // bracket with sign change found, refine using safeguarded Newton's method
+        teval = 0.5*(lb+ub);
+
+
+        Fgr_[i] = (teval*(teval*(teval*Fa_[i] + Fb_[i]) + Ff0_[i]) +  Fy0_[i]);
+        dev = (*((*ode_).spr().spLinFRootFun_[i]))(Fgr_[i],Fgrad_[i]);
+        der = (teval*((3.0*teval)*Fa_[i] + 2.0*Fb_[i])+Ff0_[i]).dot(Fgrad_[i]);
+
+        for(int iter=0;iter<100;iter++){
+          //std::cout << "dev: " << dev << " der: " << der << std::endl;
+          if(std::fabs(dev)<1.0e-14){
+            //std::cout << "splinF success" << std::endl;
+            converged = true;
+            break;
+          }
+          teval = teval - dev/der; // newton step
+          if(teval<lb || teval>ub){ // restrict to current bracket
+            fdif = lf-uf;
+            if(std::fabs(fdif)>1.0e-7){
+              // linear interpolation
+              teval = -(lb*uf - lf*ub)/fdif;
+            } else {
+              // bisection
+              teval = 0.5*(lb+ub);
+            }
+          }
+
+          // new eval
+          Fgr_[i] = (teval*(teval*(teval*Fa_[i] + Fb_[i]) + Ff0_[i]) +  Fy0_[i]);
+          dev = (*((*ode_).spr().spLinFRootFun_[i]))(Fgr_[i],Fgrad_[i]);
+          der = (teval*((3.0*teval)*Fa_[i] + 2.0*Fb_[i])+Ff0_[i]).dot(Fgrad_[i]);
+          //std::cout << "x: " << lb << " , " << teval << " , " << ub << std::endl;
+          //std::cout << "fun: " << lf << " , " << dev << " , " << uf << std::endl;
+          if(dev*lf>=0.0){
+            lb = teval;
+            lf = dev;
+          } else {
+            ub = teval;
+            uf = dev;
+          }
+        }
+        if(! converged){
+          std::cout << "RKBS32::splinFRootSolver failed to converge" << std::endl;
+        }
+      } // end safeguarded Newton's
+
+      if(converged && eps_*teval<ret){
+        ret = eps_*teval;
+        whichDim = i;
+      }
+    }
+    if(whichDim==-1){
+      return(rootInfo(ret,5,whichDim));
+    } else {
+    return(rootInfo(ret,5,whichDim,Fgrad_[whichDim]));
+    }
   }
 
 public:
@@ -172,7 +489,11 @@ public:
 
   inline rootInfo eventRootSolver(){
     rootInfo ret = linRootSolver();
+    ret.earliest(splinRootSolver());
     ret.earliest(nonlinRootSolver());
+    ret.earliest(splinL1RootSolver());
+    ret.earliest(splinL2RootSolver());
+    ret.earliest(splinFRootSolver());
     return(ret);
   }
 
@@ -233,7 +554,7 @@ public:
   }
 
   bool step(){
-
+    //std::cout << "step" << std::endl;
     ys_.col(1) = ys_.col(0) +
       (eps_*0.5)*force_.col(0);
 

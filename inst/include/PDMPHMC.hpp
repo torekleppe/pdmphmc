@@ -51,6 +51,8 @@
 #include "propertyTable.hpp"
 #include "stabilityMonitor.hpp"
 #include "rng.hpp"
+#include "compressedRowMatrix.hpp"
+#include "BaseClasses.hpp"
 /*
  * Model specifications
  *

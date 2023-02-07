@@ -56,10 +56,25 @@ class amtModel{
   size_t emptyNameCount_;
 
   size_t linConstrCount_;
+  size_t splinConstrCount_;
+  size_t splinL1ConstrCount_;
+  size_t splinL2ConstrCount_;
+  size_t splinFConstrCount_;
   size_t nonLinConstrCount_;
   Eigen::Matrix<stan::math::var,Eigen::Dynamic,1> linConstr_;
+
+  Eigen::Matrix<stan::math::var,Eigen::Dynamic,1> splinConstr_;
+
+  std::vector<Eigen::Matrix<stan::math::var,Eigen::Dynamic,1> > splinL1lhs_;
+  Eigen::VectorXd splinL1rhs_;
+
+  std::vector<Eigen::Matrix<stan::math::var,Eigen::Dynamic,1> > splinL2lhs_;
+  Eigen::VectorXd splinL2rhs_;
+
+  std::vector<Eigen::Matrix<stan::math::var,Eigen::Dynamic,1> > splinFlhs_;
+  std::vector<constraintFunctor*> splinFfun_;
+
   Eigen::Matrix<stan::math::var,Eigen::Dynamic,1> nonLinConstr_;
-  //Eigen::MatrixXd linConstrJac_;
 
   inline void reset(){
     if constexpr (storeNames){
@@ -73,6 +88,10 @@ class amtModel{
     parCount_ = 0;
     generatedCount_ = 0;
     linConstrCount_ = 0;
+    splinConstrCount_ = 0;
+    splinL1ConstrCount_ = 0;
+    splinL2ConstrCount_ = 0;
+    splinFConstrCount_ = 0;
     nonLinConstrCount_ = 0;
   }
   void expandParNames(){
@@ -119,12 +138,16 @@ public:
   std::vector<std::string> egn_;
 
 
-  amtModel() :  parCount_(0), tenPtr_(NULL), target_(0.0), generatedCount_(0), emptyNameCount_(0), linConstrCount_(0), nonLinConstrCount_(0) {}
-  amtModel(tensorType& tensor) : parCount_(0), tenPtr_(&tensor), target_(0.0), generatedCount_(0), emptyNameCount_(0), linConstrCount_(0), nonLinConstrCount_(0) {}
+  amtModel() :  parCount_(0), tenPtr_(NULL), target_(0.0), generatedCount_(0), emptyNameCount_(0), linConstrCount_(0), splinConstrCount_(0), splinL1ConstrCount_(0), splinL2ConstrCount_(0), splinFConstrCount_(0), nonLinConstrCount_(0) {}
+  amtModel(tensorType& tensor) : parCount_(0), tenPtr_(&tensor), target_(0.0), generatedCount_(0), emptyNameCount_(0), linConstrCount_(0), splinConstrCount_(0), splinL1ConstrCount_(0), splinL2ConstrCount_(0), splinFConstrCount_(0), nonLinConstrCount_(0) {}
 
   inline size_t dim() const {return parCount_;}
   inline size_t dimGen() const {return generatedCount_;}
   inline size_t numLinConstr() const {return linConstrCount_;}
+  inline size_t numSpLinConstr() const {return splinConstrCount_;}
+  inline size_t numSpLinL1Constr() const {return splinL1ConstrCount_;}
+  inline size_t numSpLinL2Constr() const {return splinL2ConstrCount_;}
+  inline size_t numSpLinFConstr() const {return splinFConstrCount_;}
   inline size_t numNonlinConstr() const {return nonLinConstrCount_;}
   inline void finalize(){
     expandParNames();
@@ -235,7 +258,7 @@ public:
       }
     }
 
-    // copy indice back to argument
+    // copy indices back to argument
 
     if(spt.size()>0){
       storePars.resize(spt.size());
@@ -255,6 +278,34 @@ public:
     for(size_t i=0;i<linConstrCount_;i++) ret.coeffRef(i) = linConstr_.coeff(i).val();
     return(ret);
   }
+  inline Eigen::VectorXd getSpLinConstraint() const {
+    Eigen::VectorXd ret(splinConstrCount_);
+    for(size_t i=0;i<splinConstrCount_;i++) ret.coeffRef(i) = splinConstr_.coeff(i).val();
+    return(ret);
+  }
+
+  inline Eigen::VectorXd getSpLinL1Lhs(const int which) const {
+    Eigen::VectorXd ret(splinL1lhs_[which].size());
+    for(size_t i=0;i<splinL1lhs_[which].size();i++) ret.coeffRef(i) = splinL1lhs_[which].coeff(i).val();
+    return(ret);
+  }
+
+  inline Eigen::VectorXd getSpLinL2Lhs(const int which) const {
+    Eigen::VectorXd ret(splinL2lhs_[which].size());
+    for(size_t i=0;i<splinL2lhs_[which].size();i++) ret.coeffRef(i) = splinL2lhs_[which].coeff(i).val();
+    return(ret);
+  }
+
+  inline Eigen::VectorXd getSpLinFLhs(const int which) const {
+    Eigen::VectorXd ret(splinFlhs_[which].size());
+    for(size_t i=0;i<splinFlhs_[which].size();i++) ret.coeffRef(i) = splinFlhs_[which].coeff(i).val();
+    return(ret);
+  }
+
+  inline Eigen::VectorXd getSpLinL1Rhs() const {return splinL1rhs_;}
+  inline Eigen::VectorXd getSpLinL2Rhs() const {return splinL2rhs_;}
+  inline std::vector<constraintFunctor*> splinFfun() const {return splinFfun_;}
+
   inline double getNonLinConstraint(const int which) const {return nonLinConstr_.coeff(which).val();}
   inline Eigen::VectorXd getNonLinConstraint() const {
     Eigen::VectorXd ret(nonLinConstr_.size());
@@ -269,12 +320,34 @@ public:
     if(linConstrCount_>0){
       for(size_t i=0;i<linConstrCount_;i++) ret = std::min(ret,linConstr_.coeff(i).val());
     }
+    if(splinConstrCount_>0){
+      for(size_t i=0;i<splinConstrCount_;i++) ret = std::min(ret,splinConstr_.coeff(i).val());
+    }
+    if(splinL1ConstrCount_>0){
+      double tmp;
+      for(size_t i=0;i<splinL1ConstrCount_;i++){
+        tmp = splinL1rhs_.coeff(i) - asDouble(splinL1lhs_[i]).array().abs().sum();
+        ret = std::min(ret,tmp);
+      }
+    }
+    if(splinL2ConstrCount_>0){
+      double tmp;
+      for(size_t i=0;i<splinL2ConstrCount_;i++){
+        tmp = splinL2rhs_.coeff(i) - asDouble(splinL2lhs_[i]).array().abs().sum();
+        ret = std::min(ret,tmp);
+      }
+    }
+    if(splinFConstrCount_>0){
+      for(size_t i=0;i<splinFConstrCount_;i++)
+      ret = std::min(ret,(*splinFfun_[i])(asDouble(splinFlhs_[i])));
+    }
+
     // add further special constraints here
     return(ret);
   }
 
   inline bool checkConstraints(){
-    if(nonLinConstrCount_<1 && linConstrCount_<1){
+    if(nonLinConstrCount_<1 && linConstrCount_<1 && splinConstrCount_<1 && splinL1ConstrCount_<1 && splinL2ConstrCount_<1){
       std::cout << "no constraints" << std::endl;
       return true;
     }
@@ -288,6 +361,39 @@ public:
           std::cout << "nonlinConstraint # " << i+1 << " evaluates to " << nonLinConstr_.coeff(i).val() << std::endl;
         }
       }
+      for(size_t i=0;i<linConstrCount_;i++){
+        if(linConstr_.coeff(i).val()<0.0){
+          std::cout << "linConstraint # " << i+1 << " evaluates to " << linConstr_.coeff(i).val() << std::endl;
+        }
+      }
+      for(size_t i=0;i<splinConstrCount_;i++){
+        if(splinConstr_.coeff(i).val()<0.0){
+          std::cout << "sparselinConstraint # " << i+1 << " evaluates to " << splinConstr_.coeff(i).val() << std::endl;
+        }
+      }
+
+      double tmp;
+      for(size_t i=0;i<splinL1ConstrCount_;i++){
+        tmp = splinL1rhs_.coeff(i) - asDouble(splinL1lhs_[i]).array().abs().sum();
+        if(tmp<0.0){
+          std::cout << "sparselinL1Constraint # " << i+1 << " evaluates to " <<  tmp << std::endl;
+        }
+      }
+      for(size_t i=0;i<splinL2ConstrCount_;i++){
+        tmp = splinL2rhs_.coeff(i) - asDouble(splinL2lhs_[i]).array().abs().sum();
+        if(tmp<0.0){
+          std::cout << "sparselinL2Constraint # " << i+1 << " evaluates to " <<  tmp << std::endl;
+        }
+      }
+      if(splinFConstrCount_>0){
+        for(size_t i=0;i<splinFConstrCount_;i++){
+          tmp = (*splinFfun_[i])(asDouble(splinFlhs_[i]));
+          if(tmp<0.0){
+            std::cout << "sparselinFunConstraint # " << i+1 << " evaluates to " <<  tmp << std::endl;
+          }
+        }
+      }
+
       return false;
     }
   }
@@ -327,25 +433,75 @@ public:
     }
   }
 
-/*
-  inline void checkLinConstraintJacobian(){
-    if(linConstrCount_>0){
-      double dev;
-      for(size_t i=0; i<linConstrCount_;i++){
-        linConstr_.coeffRef(i).grad();
-        for(size_t j=0; j<par_.size();j++){
-          dev = linConstrJac_(j,i)-par_.coeff(j).adj();
-          if(fabs(dev)/(1.0e-12 + 1.0e-12*linConstrJac_(j,i))>1.0){
-            std::cout << "linConstraint # " << i+1 << " is not linear, use nonlinConstraint() instead" << std::endl;
-            throw(765);
-          }
-        }
-        stan::math::set_zero_all_adjoints();
-      }
-      std::cout << "Linear constraints OK" << std::endl;
+  inline void splinConstraintJacobian(compressedRowMatrix<double>& splinConstrJac){
+    Eigen::VectorXd tmpRow(par_.size());
+    for(size_t i=0; i<splinConstrCount_;i++){
+      splinConstr_.coeffRef(i).grad();
+      for(size_t j=0; j<par_.size();j++) tmpRow(j) = par_.coeff(j).adj();
+      splinConstrJac.pushDenseRow(tmpRow);
+      stan::math::set_zero_all_adjoints();
     }
   }
-*/
+
+  inline void splinRep(compressedRowMatrix<double>& Jac,
+                       Eigen::VectorXd& Const,
+                       const int which,
+                       const int type){
+    // type==0 : splinL1
+    // type==1 : splinL2
+    Eigen::VectorXd tmpRow(par_.size());
+    if(type==0){
+      for(size_t i=0;i<splinL1lhs_[which].size();i++){
+        splinL1lhs_[which].coeffRef(i).grad();
+        for(size_t j=0; j<par_.size();j++) tmpRow(j) = par_.coeff(j).adj();
+        Jac.pushDenseRow(tmpRow);
+        stan::math::set_zero_all_adjoints();
+      }
+      Const = asDouble(splinL1lhs_[which]) - Jac*asDouble(par_);
+    } else if(type==1){
+      for(size_t i=0;i<splinL2lhs_[which].size();i++){
+        splinL2lhs_[which].coeffRef(i).grad();
+        for(size_t j=0; j<par_.size();j++) tmpRow(j) = par_.coeff(j).adj();
+        Jac.pushDenseRow(tmpRow);
+        stan::math::set_zero_all_adjoints();
+      }
+      Const = asDouble(splinL2lhs_[which]) - Jac*asDouble(par_);
+    } else if(type==2){
+      for(size_t i=0;i<splinFlhs_[which].size();i++){
+        splinFlhs_[which].coeffRef(i).grad();
+        for(size_t j=0; j<par_.size();j++) tmpRow(j) = par_.coeff(j).adj();
+        Jac.pushDenseRow(tmpRow);
+        stan::math::set_zero_all_adjoints();
+      }
+      Const = asDouble(splinFlhs_[which]) - Jac*asDouble(par_);
+    } else {
+      std::cout << "error in amtModel::splinRep" << std::endl;
+      throw(1);
+    }
+  }
+
+
+
+
+  /*
+   inline void checkLinConstraintJacobian(){
+   if(linConstrCount_>0){
+   double dev;
+   for(size_t i=0; i<linConstrCount_;i++){
+   linConstr_.coeffRef(i).grad();
+   for(size_t j=0; j<par_.size();j++){
+   dev = linConstrJac_(j,i)-par_.coeff(j).adj();
+   if(fabs(dev)/(1.0e-12 + 1.0e-12*linConstrJac_(j,i))>1.0){
+   std::cout << "linConstraint # " << i+1 << " is not linear, use nonlinConstraint() instead" << std::endl;
+   throw(765);
+   }
+   }
+   stan::math::set_zero_all_adjoints();
+   }
+   std::cout << "Linear constraints OK" << std::endl;
+   }
+   }
+   */
   inline void linConstraint(const varType& constr){
     linConstrCount_++;
     if(linConstr_.size()<linConstrCount_) linConstr_.conservativeResize(linConstrCount_);
@@ -357,6 +513,67 @@ public:
     }
   }
 
+  inline void sparseLinConstraint(const varType& constr){
+    splinConstrCount_++;
+    if(splinConstr_.size()<splinConstrCount_) splinConstr_.conservativeResize(splinConstrCount_);
+    if constexpr(std::is_same_v<amtVar,varType>){
+      std::cout << "constraints not implemented for varType!=stan::math::var" << std::endl;
+      throw(1);
+    } else {
+      splinConstr_.coeffRef(splinConstrCount_-1) = constr;
+    }
+  }
+
+  // constraints of the type ||lhs||_1 <= rhs
+  inline void sparseLinL1Constraint(const Eigen::Matrix<varType,Eigen::Dynamic,1>& lhs,
+                                    const double rhs){
+    if constexpr(std::is_same_v<amtVar,varType>){
+      std::cout << "constraints not implemented for varType!=stan::math::var" << std::endl;
+      throw(1);
+    }
+    splinL1ConstrCount_++;
+    if(splinL1lhs_.size()<splinL1ConstrCount_){
+      splinL1lhs_.push_back(lhs);
+      splinL1rhs_.conservativeResize(splinL1ConstrCount_);
+      splinL1rhs_.coeffRef(splinL1ConstrCount_-1) = rhs;
+    } else {
+      splinL1lhs_[splinL1ConstrCount_-1] = lhs;
+      splinL1rhs_.coeffRef(splinL1ConstrCount_-1) = rhs;
+    }
+  }
+  // constraints of the type ||lhs||_2 <= rhs
+  inline void sparseLinL2Constraint(const Eigen::Matrix<varType,Eigen::Dynamic,1>& lhs,
+                                    const double rhs){
+    if constexpr(std::is_same_v<amtVar,varType>){
+      std::cout << "constraints not implemented for varType!=stan::math::var" << std::endl;
+      throw(1);
+    }
+    splinL2ConstrCount_++;
+    if(splinL2lhs_.size()<splinL2ConstrCount_){
+      splinL2lhs_.push_back(lhs);
+      splinL2rhs_.conservativeResize(splinL2ConstrCount_);
+      splinL2rhs_.coeffRef(splinL2ConstrCount_-1) = rhs;
+    } else {
+      splinL2lhs_[splinL2ConstrCount_-1] = lhs;
+      splinL2rhs_.coeffRef(splinL2ConstrCount_-1) = rhs;
+    }
+  }
+
+  template <class cT>
+  inline void sparseLinFunConstraint(const Eigen::Matrix<varType,Eigen::Dynamic,1>& lhs,
+                                     cT& constraintFtor){
+    if constexpr(std::is_same_v<amtVar,varType>){
+      std::cout << "constraints not implemented for varType!=stan::math::var" << std::endl;
+      throw(1);
+    }
+    splinFConstrCount_++;
+    if(splinFlhs_.size()<splinFConstrCount_){
+      splinFlhs_.push_back(lhs);
+      splinFfun_.push_back(&constraintFtor);
+    } else {
+      splinFlhs_[splinFConstrCount_-1] = lhs;
+    }
+  }
 
   inline void nonlinConstraint(const varType& constr){
     nonLinConstrCount_++;
@@ -368,6 +585,8 @@ public:
       nonLinConstr_.coeffRef(nonLinConstrCount_-1) = constr;
     }
   }
+
+
 
   inline varType parameterScalar(const std::string& parName,
                                  const double default_val=0.0){
@@ -592,10 +811,17 @@ public:
     }
     std::cout << "# linear constraints: " << linConstrCount_ << std::endl;
     if(linConstrCount_>0) std::cout << linConstr_ << std::endl;
+    std::cout << "# sparse linear constraints: " << splinConstrCount_ << std::endl;
+    if(splinConstrCount_>0) std::cout << splinConstr_ << std::endl;
     std::cout << "# nonlinear constraints: " << nonLinConstrCount_ << std::endl;
     if(nonLinConstrCount_>0) std::cout << nonLinConstr_ << std::endl;
-
-
+    std::cout << "# sparse linear L1 constraints: " << splinL1ConstrCount_ << std::endl;
+    std::cout << "# sparse linear L2 constraints: " << splinL2ConstrCount_ << std::endl;
+    std::cout << "# sparse linear Fun constraints: " << splinFConstrCount_ << std::endl;
+    if(splinFConstrCount_>0){
+    std::cout << "sparse linear Fun constraints: functor types:" << std::endl;
+    for(size_t i=0;i<splinFConstrCount_;i++) std::cout << (*splinFfun_[i]).name() << std::endl;
+    }
   }
 
 

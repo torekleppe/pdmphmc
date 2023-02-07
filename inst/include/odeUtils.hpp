@@ -1,6 +1,7 @@
 #ifndef _ODEUTILS_HPP_
 #define _ODEUTILS_HPP_
 
+#include "BaseClasses.hpp"
 
 /*
  * Unified specification of special root functions (linear, L1 etc)
@@ -11,18 +12,37 @@ struct specialRootSpec{
   Eigen::MatrixXd linRootJac_;
   Eigen::VectorXd linRootConst_;
 
-  // sparse linear root function (todo)
+  // sparse linear root function
+  compressedRowMatrix<double> spLinRootJac_;
+  Eigen::VectorXd spLinRootConst_;
 
+  // linear L1-norm
+  std::vector<compressedRowMatrix<double> > spLinL1RootJac_;
+  std::vector<Eigen::VectorXd> spLinL1RootConst_;
+  std::vector<double> spLinL1RootRhs_;
 
-  // linear L1-norm (todo)
+  // linear L2-norm
+  std::vector<compressedRowMatrix<double> > spLinL2RootJac_;
+  std::vector<Eigen::VectorXd> spLinL2RootConst_;
+  std::vector<double> spLinL2RootRhs_;
+
+  // linear - generic function
+  std::vector<compressedRowMatrix<double> > spLinFRootJac_;
+  std::vector<Eigen::VectorXd> spLinFRootConst_;
+  std::vector<constraintFunctor*> spLinFRootFun_;
 
   specialRootSpec(){}
-  inline bool nonTrivial() const {return linRootJac_.rows()>0;}
+  //inline bool nonTrivial() const {return linRootJac_.rows()>0 || spLinRootJac_.rows()>0;}
   friend std::ostream& operator<< (std::ostream& out, const specialRootSpec& obj);
 };
 std::ostream& operator<< (std::ostream& out, const specialRootSpec& obj){
   out << "specialRootSpec,\n# linRoots: " << obj.linRootJac_.rows() << "\n";
-  out << "Jacobian: \n" << obj.linRootJac_ << "\nConstant\n" << obj.linRootConst_ << std::endl;
+  out << "# sparseLinRoots:" << obj.spLinRootJac_.rows() << "\n";
+  out << "Lin Jacobian: \n" << obj.linRootJac_ << "\nConstant\n" << obj.linRootConst_ << std::endl;
+  out << "SparseLin Jacobian: \n" << obj.spLinRootJac_ << "\nConstant\n" << obj.spLinRootConst_ << std::endl;
+  out << "# sparse linear L1 constraints: " << obj.spLinL1RootConst_.size() << std::endl;
+  out << "# sparse linear L2 constraints: " << obj.spLinL2RootConst_.size() << std::endl;
+  out << "# sparse linear Fun constraints: " << obj.spLinFRootConst_.size() << std::endl;
   return out;
 }
 
@@ -34,15 +54,18 @@ std::ostream& operator<< (std::ostream& out, const specialRootSpec& obj){
  */
 struct rootInfo{
   double rootTime_;
-  int rootType_; // 0=non-linear, 1=linear
+  int rootType_; // 0=non-linear, 1=linear, 2=linear sparse, 3=linear sparse L1, 4=linear sparse L2, 5= linear sparse + fun
   int rootDim_;
+  Eigen::VectorXd auxInfo_;
   rootInfo() : rootTime_(1.0e100),rootDim_(-1) {}
-  rootInfo(double rootTime, int rootType, int rootDim) : rootTime_(rootTime), rootType_(rootType), rootDim_(rootDim) {}
+  rootInfo(const double rootTime, const int rootType, const int rootDim) : rootTime_(rootTime), rootType_(rootType), rootDim_(rootDim) {}
+  rootInfo(const double rootTime, const int rootType, const int rootDim, const Eigen::VectorXd& aux) : rootTime_(rootTime), rootType_(rootType), rootDim_(rootDim), auxInfo_(aux)  {}
   void earliest(const rootInfo& other){
     if(other.rootTime_<rootTime_){
       rootTime_ = other.rootTime_;
       rootType_ = other.rootType_;
       rootDim_ = other.rootDim_;
+      auxInfo_ = other.auxInfo_;
     }
   }
   friend std::ostream& operator<< (std::ostream& out, const rootInfo& obj);
