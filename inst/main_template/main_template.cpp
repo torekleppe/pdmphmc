@@ -28,7 +28,7 @@ int main(int argc, char *argv[]){
       fileNameBase = fileNameBase.substr(0,fileNameBase.length()-4);
     }
   }*/
-  std::cout << "fileNameBase : " << fileNameBase << std::endl;
+  //std::cout << "fileNameBase : " << fileNameBase << std::endl;
 
   // chain id from command line
   int chain_id = 0;
@@ -75,8 +75,10 @@ int main(int argc, char *argv[]){
 
 
 
-
-  typedef diagLinearTM_VARI TMtype;
+#ifndef TMType__
+#define TMType__ diagLinearTM_VARI
+#endif
+  //typedef diagLinearTM_VARI TMtype;
 
   PDPsampler<ProcessType__,
              modelSpec__,
@@ -84,19 +86,19 @@ int main(int argc, char *argv[]){
              rungeKuttaSolver,
              RKstepType__,
              metricTensorType__,
-             TMtype,
+             TMtype__,
              constantLambda,
              diagnostics> sampler;
 
   sampler.setup(m,dim,dimGen,ci);
 
-  std::cout << "sampler setup done" << std::endl;
+  //std::cout << "sampler setup done" << std::endl;
 
   sampler.setPrintPrefix("chain #" + std::to_string(chain_id));
 
 
   json_wrap ctrl(fileNameBase+"_control.json");
-  std::cout << "reading of control done" << std::endl;
+  //std::cout << "reading of control done" << std::endl;
 
   /*----------------------------------------------------
    * Work out which parameters to store
@@ -169,11 +171,11 @@ int main(int argc, char *argv[]){
 
 
 #ifndef _NO_IPS_
-  std::cout << "IPS start" << std::endl;
+  std::cout << "[chain #" << chain_id << "] IPS start" << std::endl;
   initialPointSolver<modelSpec__> ips(m,dim,dimGen,ci);
   ips.seed(seed+1000*chain_id+13);
   if(ips.run(q0)) q0 = ips.bestQ();
-  std::cout << "IPS end" << std::endl;
+  std::cout << "[chain #" << chain_id << "] IPS end" << std::endl;
 #endif
 
 

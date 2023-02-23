@@ -381,7 +381,7 @@ public:
     (*t_)(mdl_);
     mdl_.getGenerated(gen_tmp_);
     double eval = mdl_.getTargetDouble(); //t_(par_tmp_,gen_tmp_,tensorDummy_);
-    std::cout << "first evaluation: value = " << eval << std::endl;
+    //std::cout << "first evaluation: value = " << eval << std::endl;
     stan::math::recover_memory();
     if(! std::isfinite(eval)) return(false);
     if(! gen_tmp_.array().isFinite().all()){
@@ -433,7 +433,7 @@ public:
   void SimulateIntialState(const int odeOrder,
                            const Eigen::VectorXd &par0,
                            odeState &s0){
-    std::cout << "SimulateIntialState" << std::endl;
+    //std::cout << "SimulateIntialState" << std::endl;
     Eigen::VectorXd q0 = par0;
     TM_.toQ(q0);
     q_tmp_ = q0;
@@ -452,7 +452,7 @@ public:
     q_last_event_ = s0.y.head(dim_);
     nut_time_ = 0.0;
     u_ = -log(r_.runif());
-    std::cout << "SimulateIntialState done" << std::endl;
+    //std::cout << "SimulateIntialState done" << std::endl;
   }
 
 
@@ -628,7 +628,6 @@ public:
         newState.y.segment(dim_,dim_));
       if(fac>0.0) {
         std::cout << "sparse lin Fun: trajectory passing into allowed region!!!, fac = " << fac << std::endl;
-        throw(1);
       }
     }else {
       std::cout << "root type" << rootOut.rootType_ << " not implemented yet" << std::endl;

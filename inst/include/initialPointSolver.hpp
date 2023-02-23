@@ -431,7 +431,7 @@ class initialPointSolver{
 
     size_t nstep = 0;
     size_t nacc = 0;
-
+    rootInfo oldRoot;
     bool stepGood,flag,noRoot;
     while(nstep <= _IPS_MAX_STEPS_PER_LEG_){
       stepGood = false;
@@ -462,13 +462,14 @@ class initialPointSolver{
         break;
       }
 
-      std::cout << "step accepted, eps = " << rk_.eps_ << std::endl;
+      //std::cout << "step accepted, eps = " << rk_.eps_ << std::endl;
 
 
 
       // check if collisions occurred
-      rootInfo ri = rk_.eventRootSolver();
-      std::cout << ri << std::endl;
+      rootInfo ri = rk_.eventRootSolver(oldRoot);
+      //std::cout << ri << std::endl;
+      oldRoot = ri;
 
       //throw(1);
 
@@ -584,7 +585,7 @@ public:
       //std::cout << "l : " << l << std::endl;
       if(mon_.hasSufficientData()){
         if(mon_.isStable_regression()){
-          std::cout << "initialPointSolver done" << std::endl;
+          //std::cout << "initialPointSolver done" << std::endl;
           return(true);
         }
       }

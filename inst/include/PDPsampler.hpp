@@ -196,7 +196,7 @@ public:
     int_.registerDiagnostics(diag_,0);
 
 
-    std::cout << "first eval" << std::endl;
+    //std::cout << "first eval" << std::endl;
     //std::cout << "q0 : \n" << q0 << std::endl;
     // try a first evaluation
     bool firstEvalGood = proc_.firstEval(q0);
@@ -204,7 +204,7 @@ public:
       std::cout << "bad initial state, exiting" << std::endl;
       return(false);
     }
-    std::cout << "done first eval" << std::endl;
+    //std::cout << "done first eval" << std::endl;
     // get initial state
 
 
@@ -212,7 +212,7 @@ public:
     proc_.SimulateIntialState(int_.odeOrder(),q0,state0);
     int_.setInitialState(state0);
 
-    std::cout << "done initial state" << std::endl;
+    //std::cout << "done initial state" << std::endl;
     // acutal PDP simulation
     int_.run(storePars,Tmax,nSamples);
 

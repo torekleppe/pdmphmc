@@ -113,6 +113,7 @@
 #include "PDPsampler.hpp"
 #include "initialPointSolver.hpp"
 
-
+#include "FMVAD/FMVAD.hpp"
+#include "FMVAD/FMVAD_spec_funs.hpp"
 
 #endif

@@ -7,7 +7,9 @@
 build(
   model.file,
   model.class.name = "model",
-  process.type = c("HMCProcess", "RMHMCProcess"),
+  process.type = c("HMCProcessConstr", "HMCProcess", "RMHMCProcess"),
+  step.type = c("RKDP54", "RKBS32"),
+  TM.type = c("diagLinearTM_VARI", "diagLinearTM_ISG", "identityTM"),
   amt = process.type == "RMHMCProcess",
   metric.tensor.type = c("Sparse", "Dense"),
   work.folder = paste0(getwd(), "/pdmphmc_files/"),
@@ -22,6 +24,10 @@ build(
 \item{model.class.name}{the name of the model specification class}
 
 \item{process.type}{which kind of pdmphmc-process to use}
+
+\item{step.type}{which Runge Kutta method}
+
+\item{TM.type}{which Transport Map}
 
 \item{amt}{should amtVar or regular AD types be used}
 

@@ -18,6 +18,7 @@
 #' @param model.class.name the name of the model specification class
 #' @param process.type which kind of pdmphmc-process to use
 #' @param step.type which Runge Kutta method
+#' @param TM.type which Transport Map
 #' @param amt should amtVar or regular AD types be used
 #' @param metric.tensor.type either sparse or dense storage
 #' @param work.folder the folder used for storing files, created if not already existing
@@ -29,6 +30,7 @@ build <- function(model.file,
                   model.class.name="model",
                   process.type=c("HMCProcessConstr","HMCProcess","RMHMCProcess"),
                   step.type=c("RKDP54","RKBS32"),
+                  TM.type=c("diagLinearTM_VARI","diagLinearTM_ISG","identityTM"),
                   amt=process.type=="RMHMCProcess",
                   metric.tensor.type=c("Sparse","Dense"),
                   work.folder=paste0(getwd(),"/pdmphmc_files/"),
@@ -72,6 +74,10 @@ build <- function(model.file,
   step.type <- match.arg(step.type)
   header <- paste0(header," #define RKstepType__ ",step.type," \n")
   message("Runge Kutta step type : ",step.type)
+
+  TM.type <- match.arg(TM.type)
+  header <- paste0(header," #define TMType__ ",TM.type," \n")
+  message("Transport map type : ",TM.type)
 
   if(process.type=="RMHMCProcess"){
     metric.tensor.type <- match.arg(metric.tensor.type)

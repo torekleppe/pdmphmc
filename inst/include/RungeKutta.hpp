@@ -166,6 +166,8 @@ public:
     int nacc = 0;
 
 
+    rootInfo oldRoot;
+
     Eigen::Array<bool,Eigen::Dynamic,1> whichEvent;
 
     // for PI controller
@@ -262,7 +264,8 @@ public:
       // check if events occurred
       //
       //if(step_.hasEventRootSolver()){
-      rootOut = step_.eventRootSolver();
+      rootOut = step_.eventRootSolver(oldRoot);
+      oldRoot = rootOut;
 
 
 #ifdef __DEBUG__

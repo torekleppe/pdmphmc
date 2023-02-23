@@ -331,7 +331,7 @@ class RKBS32{
   std::vector<Eigen::VectorXd> Fy0_,Fy1_,Ff0_,Ff1_,Fydif_,Fa_,Fb_,Fgr_,Fgrad_;
   Eigen::VectorXd Fgrid_,Fvals_;
 
-  inline rootInfo splinFRootSolver(){
+  inline rootInfo splinFRootSolver(const rootInfo& oldRoot){
     double ret = eps_;
     int whichDim = -1;
     //std::cout << "splinFRootSolver" << std::endl;
@@ -351,13 +351,14 @@ class RKBS32{
         Fgr_.emplace_back((*ode_).spr().spLinFRootConst_[i].size());
         Fgrad_.emplace_back((*ode_).spr().spLinFRootConst_[i].size());
       }
-      Fgrid_.setLinSpaced(_SPLINF_GRID_SIZE_,1.0e-11,1.0);
+      Fgrid_.setLinSpaced(_SPLINF_GRID_SIZE_,0.0,1.0);
       Fvals_.resize(_SPLINF_GRID_SIZE_);
     }
     //std::cout << "alloc done" << std::endl;
 
-    double cand,lb,ub,lf,uf,teval,dev,der,fdif;
+    double cand,lb,ub,lf,uf,teval,dev,der,fdif,funScale,abScale;
     bool converged;
+    bool leftRoot;
     // loop over the different constraints
     for(size_t i=0;i<(*ode_).spr().spLinFRootJac_.size();i++){
       Fy0_[i] = (*ode_).spr().spLinFRootJac_[i]*ys_.col(0)+(*ode_).spr().spLinFRootConst_[i];
@@ -371,6 +372,8 @@ class RKBS32{
 
       // done making polynomial, now search for sign flips on a grid:
       ub = 2.0;
+      Fvals_.setZero();
+      leftRoot = false;
       for(int g=0;g<_SPLINF_GRID_SIZE_;g++){
         teval = Fgrid_.coeff(g);
         Fgr_[i] = (teval*(teval*(teval*Fa_[i] + Fb_[i]) + Ff0_[i]) +  Fy0_[i]);
@@ -381,6 +384,15 @@ class RKBS32{
           std::cout << "splinF: numerical problems in functor # " << i << std::endl;
           std::cout << "evaluates to " << Fvals_.coeff(g) << "for lhs=\n" << Fgr_[i] << std::endl;
           throw(756);
+        }
+
+        if(g==0 && (std::fabs(Fvals_.coeff(0))<1.0e-12 ||
+           (!(*ode_).spr().allowRepeatedRoots_ && oldRoot.rootDim_==i && oldRoot.rootType_==5))){
+          // if left endpoint is a root, set fun value equal to derivative in
+          // order to avoid numerical rounding interferes with bracketing
+          leftRoot = true;
+          dev = (*((*ode_).spr().spLinFRootFun_[i]))(Fy0_[i],Fgrad_[i]);
+          Fvals_.coeffRef(0) = Ff0_[i].dot(Fgrad_[i]);
         }
 
         if(g>0 && Fvals_.coeff(g-1)*Fvals_.coeff(g)<=0.0){
@@ -394,9 +406,38 @@ class RKBS32{
           break;
         }
       }
-      //std::cout << Fvals_.transpose() << "\n" << Fgrid_.transpose() << std::endl;
+
+      // refine bracket if root is found in the first grid interval, and another
+      // root is present at left endpoint (to avoid repeating the same root many times)
+
+      if(leftRoot && lb<1.0e-14){
+        //std::cout << Fvals_.transpose() << "\n" << Fgrid_.transpose() << std::endl;
+        converged = false;
+        teval = 0.5*ub;
+        //std::cout << "left bracket proc" << std::endl;
+        for(int iter=0;iter<40;iter++){
+          Fgr_[i] = (teval*(teval*(teval*Fa_[i] + Fb_[i]) + Ff0_[i]) +  Fy0_[i]);
+          dev = (*((*ode_).spr().spLinFRootFun_[i]))(Fgr_[i]);
+          //std::cout << "teval: " << teval << " dev: " << dev << std::endl;
+          if(uf*dev<0.0){
+            converged = true;
+            lb = teval;
+            lf = dev;
+            break;
+          }
+          teval*=0.5;
+        }
+        if(!converged){
+          std::cout << "left root bracketing proc failed" << std::endl;
+          throw(13443);
+        }
+      }
+
       converged = false;
+
       if(ub<1.5){ // bracket with sign change found, refine using safeguarded Newton's method
+        funScale = 0.5*(std::fabs(lf)+std::fabs(uf));
+
         teval = 0.5*(lb+ub);
 
 
@@ -406,21 +447,17 @@ class RKBS32{
 
         for(int iter=0;iter<100;iter++){
           //std::cout << "dev: " << dev << " der: " << der << std::endl;
-          if(std::fabs(dev)<1.0e-14){
+          if(std::fabs(dev)<std::max(1.0e-10*funScale,1.0e-12) || std::fabs(dev/der)<1.0e-14*std::max(0.1,teval)){
             //std::cout << "splinF success" << std::endl;
+            //std::cout << "dev: " << dev << " der: " << der << std::endl;
+            //std::cout << "lb: " << lb << " teval: " << teval << " ub: " << ub << std::endl;
             converged = true;
             break;
           }
           teval = teval - dev/der; // newton step
           if(teval<lb || teval>ub){ // restrict to current bracket
-            fdif = lf-uf;
-            if(std::fabs(fdif)>1.0e-7){
-              // linear interpolation
-              teval = -(lb*uf - lf*ub)/fdif;
-            } else {
               // bisection
               teval = 0.5*(lb+ub);
-            }
           }
 
           // new eval
@@ -437,8 +474,14 @@ class RKBS32{
             uf = dev;
           }
         }
-        if(! converged){
+        if(! converged || teval < 1.0e-10){
           std::cout << "RKBS32::splinFRootSolver failed to converge" << std::endl;
+          std::cout << Fvals_.transpose() << "\n" << Fgrid_.transpose() << std::endl;
+          std::cout << "constraint at left endpoint: " << (*((*ode_).spr().spLinFRootFun_[i]))(Fy0_[i],Fgrad_[i]) << std::endl;
+          std::cout << "gradient at left endpoint:\n" << Fgrad_[i].dot(Ff0_[i]) << std::endl;
+          std::cout << "dev: " << dev << " lb: " << lb << " ub: " << ub << std::endl;
+          std::cout << "lf: " << lf << " uf: " << uf << std::endl;
+          std::cout << std::setprecision(14) << "polynomial:\n" << Fa_[i] << "\n\n" << Fb_[i] << "\n\n" << Ff0_[i] << "\n\n" << Fy0_[i] << std::endl;
         }
       } // end safeguarded Newton's
 
@@ -487,13 +530,13 @@ public:
 
   inline odeState lastState() const {return(odeState(ys_.col(3)));}
 
-  inline rootInfo eventRootSolver(){
+  inline rootInfo eventRootSolver(const rootInfo& oldRoot){
     rootInfo ret = linRootSolver();
     ret.earliest(splinRootSolver());
     ret.earliest(nonlinRootSolver());
     ret.earliest(splinL1RootSolver());
     ret.earliest(splinL2RootSolver());
-    ret.earliest(splinFRootSolver());
+    ret.earliest(splinFRootSolver(oldRoot));
     return(ret);
   }
 

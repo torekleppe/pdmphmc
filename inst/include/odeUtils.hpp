@@ -8,6 +8,7 @@
  *
  */
 struct specialRootSpec{
+  bool allowRepeatedRoots_;
   // dense linear root function linRootJac_*y + linRootConst_ = 0 where y is the ode state
   Eigen::MatrixXd linRootJac_;
   Eigen::VectorXd linRootConst_;
@@ -31,7 +32,7 @@ struct specialRootSpec{
   std::vector<Eigen::VectorXd> spLinFRootConst_;
   std::vector<constraintFunctor*> spLinFRootFun_;
 
-  specialRootSpec(){}
+  specialRootSpec() : allowRepeatedRoots_(false) {}
   //inline bool nonTrivial() const {return linRootJac_.rows()>0 || spLinRootJac_.rows()>0;}
   friend std::ostream& operator<< (std::ostream& out, const specialRootSpec& obj);
 };
@@ -57,7 +58,7 @@ struct rootInfo{
   int rootType_; // 0=non-linear, 1=linear, 2=linear sparse, 3=linear sparse L1, 4=linear sparse L2, 5= linear sparse + fun
   int rootDim_;
   Eigen::VectorXd auxInfo_;
-  rootInfo() : rootTime_(1.0e100),rootDim_(-1) {}
+  rootInfo() : rootTime_(1.0e100),rootType_(-1), rootDim_(-1) {}
   rootInfo(const double rootTime, const int rootType, const int rootDim) : rootTime_(rootTime), rootType_(rootType), rootDim_(rootDim) {}
   rootInfo(const double rootTime, const int rootType, const int rootDim, const Eigen::VectorXd& aux) : rootTime_(rootTime), rootType_(rootType), rootDim_(rootDim), auxInfo_(aux)  {}
   void earliest(const rootInfo& other){

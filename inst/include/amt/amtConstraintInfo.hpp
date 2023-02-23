@@ -158,14 +158,14 @@ struct constraintInfo{
             return(false);
           }
         }
-        std::cout << "checking gradients provided in functors: ";
+        //std::cout << "checking gradients provided in functors: ";
         bool FDout = functorFDtest(model);
 
         if(! FDout){
-          std::cout << "failed!!!" << std::endl;
+          std::cout << "gradients provided in functors: failed!!!" << std::endl;
           return false;
         } else {
-          std::cout << "OK" << std::endl;
+          //std::cout << "OK" << std::endl;
         }
 
       }
@@ -190,7 +190,7 @@ struct constraintInfo{
         spdev = model.getSpLinConstraint();
 
         if(std::isfinite(tval) && dev.array().isFinite().all() && spdev.array().isFinite().all()){
-          std::cout << "new eval OK, alpha = " << alpha << std::endl;
+          //std::cout << "new eval OK, alpha = " << alpha << std::endl;
           iterationDone = true;
           break;
         }
@@ -274,14 +274,14 @@ struct constraintInfo{
             }
           }
         }
-        std::cout << "checking gradients provided in functors once more: ";
+        //std::cout << "checking gradients provided in functors once more: ";
         bool FDout = functorFDtest(model);
 
         if(! FDout){
-          std::cout << "failed!!!" << std::endl;
+          std::cout << "gradients provided in functors: failed!!!" << std::endl;
           return false;
         } else {
-          std::cout << "OK" << std::endl;
+          //std::cout << "OK" << std::endl;
         }
       }
       // second check: recompute Jacobian (only done for basic cases)

@@ -347,7 +347,7 @@ public:
   }
 
   inline bool checkConstraints(){
-    if(nonLinConstrCount_<1 && linConstrCount_<1 && splinConstrCount_<1 && splinL1ConstrCount_<1 && splinL2ConstrCount_<1){
+    if(nonLinConstrCount_<1 && linConstrCount_<1 && splinConstrCount_<1 && splinL1ConstrCount_<1 && splinL2ConstrCount_<1 && splinFConstrCount_<1){
       std::cout << "no constraints" << std::endl;
       return true;
     }

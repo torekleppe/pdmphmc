@@ -216,7 +216,7 @@ class amtData{
         return(1);
       }
 
-      std::cout << "doc member count" << doc_.MemberCount() << std::endl;
+      //std::cout << "doc member count" << doc_.MemberCount() << std::endl;
 
       // get a list of all data fields
       std::vector<std::string> all;

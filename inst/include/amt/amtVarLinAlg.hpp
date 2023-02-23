@@ -130,6 +130,24 @@ inline void matVecProd(const Eigen::MatrixXd& x,
   ret=x*y;
 }
 
+
+/*
+ * matrix (AD type) times vector (double)
+ * NOTE: amtVar overload not implemented yet
+ */
+inline void matVecProd(const Eigen::Matrix<stan::math::var,Eigen::Dynamic,Eigen::Dynamic>& lhs,
+                       const Eigen::VectorXd& rhs,
+                       Eigen::Matrix<stan::math::var,Eigen::Dynamic,1>& ret){
+  if(lhs.cols()==rhs.size() && rhs.size()>0){
+  ret=rhs.coeff(0)*lhs.col(0);
+    for(size_t i=1;i<rhs.size();i++) ret+=rhs.coeff(i)*lhs.col(i);
+  } else {
+    std::cout << "bad input into matVecProd" << std::endl;
+    throw(345);
+  }
+
+}
+
 }
 
 #endif

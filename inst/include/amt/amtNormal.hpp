@@ -203,6 +203,8 @@ public:
 
 
 
+
+
 template <>
 class normal_ld<Eigen::VectorXd,Eigen::Matrix<amtVar,Eigen::Dynamic,1>,double>{
   const Eigen::VectorXd* arg_;

@@ -170,6 +170,7 @@ public:
                        const SPDmatrix<precType>& Prec) {
     AMT_NOT_IMPLEMENTED_ERROR__CONTACT_DEVELOPER_3<argType,muType,precType> dummy;
   }
+
   template <class tenPtrType>
   inline stan::math::var operator()(tenPtrType tensor) const{
     return(0.0);
@@ -257,6 +258,20 @@ public:
                        const Eigen::Matrix<double,Eigen::Dynamic,1>& mu,
                        const SPDmatrix< stan::math::var >& Prec) :
   lpdf_(multi_normal_prec_lpdf_StanVal<stan::math::var,double,stan::math::var>(arg,mu,Prec)){}
+  template <class tenPtrType>
+  inline stan::math::var operator()(tenPtrType tensor) const{
+    return(lpdf_);
+  }
+};
+
+template <>
+class multi_normal_prec_ld<double,stan::math::var,stan::math::var>{
+  const stan::math::var lpdf_;
+public:
+  multi_normal_prec_ld(const Eigen::VectorXd& arg,
+                       const Eigen::Matrix<stan::math::var,Eigen::Dynamic,1>& mu,
+                       const SPDmatrix< stan::math::var >& Prec) :
+  lpdf_(multi_normal_prec_lpdf_StanVal<double,stan::math::var,stan::math::var>(arg,mu,Prec)){}
   template <class tenPtrType>
   inline stan::math::var operator()(tenPtrType tensor) const{
     return(lpdf_);
