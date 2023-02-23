@@ -86,7 +86,7 @@ int main(int argc, char *argv[]){
              rungeKuttaSolver,
              RKstepType__,
              metricTensorType__,
-             TMtype__,
+             TMType__,
              constantLambda,
              diagnostics> sampler;
 

@@ -55,7 +55,9 @@ public:
   inline void adaptUpdate(){
     std::cout << "identityTM: attempting adaptUpdate()" << std::endl;
   }
+  void toJSON(jsonOut &outf) const {
 
+  }
 
 };
 
