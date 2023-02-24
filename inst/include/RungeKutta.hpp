@@ -183,7 +183,9 @@ public:
     rootInfo rootOut;
     step_.t_right_ = 0.0;
     done = false;
-
+#ifdef _STORE_EVENT_STATES_
+    Eigen::VectorXd EventStateStore(storePars.size());
+#endif
 
     storePars_ = storePars;
     samples_.resize(storePars_.size()+dimGenerated_,nsamples+1);
@@ -347,6 +349,14 @@ public:
         (*diagnostics_).push("nacc",static_cast<double>(nacc));
         (*diagnostics_).push("eventType",static_cast<double>(rootOut.rootType_));
         (*diagnostics_).push("eventDim",static_cast<double>(rootOut.rootDim_));
+#ifdef _STORE_EVENT_STATES_
+        (*ode_).getStorePars(storePars_,
+         rootOut.rootTime_,
+         step_,
+         EventStateStore);
+        (*diagnostics_).push("state",EventStateStore);
+#endif
+
 
         (*diagnostics_).newRow();
         // prepare next integration leg
@@ -398,6 +408,13 @@ public:
     (*diagnostics_).push("nacc",static_cast<double>(nacc));
     (*diagnostics_).push("eventType",static_cast<double>(rootOut.rootType_));
     (*diagnostics_).push("eventDim",static_cast<double>(rootOut.rootDim_));
+#ifdef _STORE_EVENT_STATES_
+    (*ode_).getStorePars(storePars_,
+     rootOut.rootTime_,
+     step_,
+     EventStateStore);
+    (*diagnostics_).push("state",EventStateStore);
+#endif
 
     // timing
     auto endTime = std::chrono::high_resolution_clock::now();

@@ -220,7 +220,7 @@ public:
   }
 
   void diagnosticsToFile(const std::string filename){
-    diag_.toFile(4,filename);
+    diag_.toFile(6,filename);
   }
 
   void samplesToFile(const int csvPrec,
