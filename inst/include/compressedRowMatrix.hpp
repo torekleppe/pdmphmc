@@ -19,15 +19,18 @@ class compressedRowMatrix{
     Eigen::Matrix<int,Eigen::Dynamic,1> colNz(cols_);
     colNz.setZero();
     for(size_t i=0;i<ele_count_;i++) colNz(cinds_.coeff(i)) = 1;
+    //std::cout << "colNz\n" << colNz.transpose() << std::endl;
     int nz = colNz.sum();
     if(preImNz_.size()!=nz) preImNz_.resize(nz);
+    //std::cout << "preImNz before \n" << preImNz_.transpose() << std::endl;
     int c = 0;
-    for(size_t i=0;i<ele_count_;i++){
+    for(size_t i=0;i<colNz.size();i++){
       if(colNz(i)==1){
         preImNz_.coeffRef(c) = i;
         c++;
       }
     }
+    //std::cout << "preImNz after \n" << preImNz_.transpose() << std::endl;
     //std::cout << "colNz \n" << colNz << std::endl;
     //std::cout << "nz : " << nz << std::endl;
     //std::cout << "preImNz \n" << preImNz_ << std::endl;
@@ -46,6 +49,9 @@ public:
     }
   }
   inline size_t rows() const {return rows_;}
+  inline size_t rowNz(const size_t whichRow) const {return rinds_(whichRow+1)-rinds_(whichRow);}
+  inline size_t getColIndex(const size_t whichRow, const size_t offset) const {return cinds_.coeff(rinds_.coeff(whichRow)+offset);}
+  inline double getValColIndex(const size_t whichRow, const size_t offset) const {return vals_.coeff(rinds_.coeff(whichRow)+offset);}
   inline bool isAllFinite() const {return vals_.head(ele_count_).array().isFinite().all();}
   inline bool isEqualTo(const compressedRowMatrix<double>& other){
     if(rows_ != other.rows_ || cols_ != other.cols_ || ele_count_ != other.ele_count_) return(false);
@@ -103,7 +109,7 @@ public:
       }
     }
     updatePreImNz();
-
+    //std::cout << preImNz_ << std::endl;
   }
 
 
@@ -141,7 +147,7 @@ public:
     size_t t;
     for(size_t i=0;i<rows_;i++){
       for(size_t j=rinds_.coeff(i);j<rinds_.coeff(i+1);j++){
-      result.coeffRef(cinds_.coeff(j)) += rhs.coeff(i)*vals_.coeff(j);
+        result.coeffRef(cinds_.coeff(j)) += rhs.coeff(i)*vals_.coeff(j);
       }
     }
     //std::cout << "dense:\n" << (asDense().transpose()*rhs).transpose() << std::endl;
@@ -214,15 +220,18 @@ public:
    *
    * and returns fac.
    *
-   * The routine takes advantage of any sparsity in n-
+   * The routine takes advantage of any sparsity in n
    */
   Eigen::VectorXd nvec_;
   inline double splinStandardizedCollisionMomentumUpdate(const Eigen::VectorXd& rawGradient,
-                                                Eigen::Ref<Eigen::VectorXd> momentum){
+                                                         Eigen::Ref<Eigen::VectorXd> momentum,
+                                                         const double reversalThresh=0.0)  {
+    //std::cout << preImNz_ << std::endl;
     if(momentum.size()<preImNz_.coeff(preImNz_.size()-1)+1){
       std::cout << "error in compressedRowMatrix::splinStandardizedCollisionMomentumUpdate" << std::endl;
       throw(890);
     }
+
     if(nvec_.size()!=momentum.size()) nvec_.resize(momentum.size());
     nvec_.setZero();
     size_t t;
@@ -231,21 +240,98 @@ public:
         nvec_.coeffRef(cinds_.coeff(j)) += rawGradient.coeff(i)*vals_.coeff(j);
       }
     }
+    //std::cout << "before fac" << std::endl;
 
-    double fac = 2.0*preImNz_.unaryExpr(momentum).dot(preImNz_.unaryExpr(nvec_))/((preImNz_.unaryExpr(nvec_)).squaredNorm());
+    double nvecSnorm = (preImNz_.unaryExpr(nvec_)).squaredNorm();
+    double fac = 2.0*preImNz_.unaryExpr(momentum).dot(preImNz_.unaryExpr(nvec_))/nvecSnorm;
+    double phi;
+    if(reversalThresh>0.0){
+      phi = 0.5*fac*sqrt(nvecSnorm)/preImNz_.unaryExpr(momentum).norm();
+    } else {
+      phi = 2.0;
+    }
 
-    //remove
-    //Eigen::VectorXd pcp = momentum;
-    //Eigen::VectorXd nvec = asDense().leftCols(momentum.size()).transpose()*rawGradient;
-    //std::cout << "asDense\n" << nvec << std::endl;
-    //std::cout << "this\n" << nvec_ << std::endl;
-    //std::cout << "facs : " << fac << " " << 2.0*nvec.dot(momentum)/nvec.squaredNorm() << std::endl;
-    // remove to here
+    //std::cout << "abs(phi) : " << std::fabs(phi) << std::endl;
+    if(std::fabs(phi)<1.0e-3) throw 32;
+
     if(fac<0.0){
-      for(size_t i=0;i<preImNz_.size();i++) momentum.coeffRef(preImNz_.coeff(i)) -= fac*nvec_.coeff(preImNz_.coeff(i));
+      if(std::fabs(phi)>reversalThresh){
+        for(size_t i=0;i<preImNz_.size();i++) momentum.coeffRef(preImNz_.coeff(i)) -= fac*nvec_.coeff(preImNz_.coeff(i));
+      } else {
+        for(size_t i=0;i<preImNz_.size();i++) momentum.coeffRef(preImNz_.coeff(i)) = -momentum.coeffRef(preImNz_.coeff(i));
+      }
     }
     return(fac);
   }
+
+
+  /*
+   * assuming that the dim=momentum.size() left-most columns of
+   * *this represent A*S and that we have a constraint on the form c(y)
+   * where y = A*S*q' + (A*m+b), where \nabla_y c(y) = rawGradient,
+   *
+   * this function updates the standardized momentum p' as
+   *
+   * momentum(preImNz) = z - (<z+momentum(preImNz),n(preImNz)>/<n(preImNz),n(preImNz)>)*n(preImNz)
+   *
+   * where
+   *
+   * z \sim N(0,I) \in preImNz.size()
+   *
+   * n = ((A*S).leftCols(dim))^T*rawGradient
+   *
+   * fac = 2.0*(n.dot(momentum))/(n.dot(n))
+   *
+   * and returns fac.
+   *
+   * The routine takes advantage of any sparsity in n
+   */
+  Eigen::VectorXd boundary_z_;
+  inline double splinStandardizedRandomizedMomentumUpdate(
+      rng& r, // used
+      const Eigen::VectorXd& rawGradient,
+      Eigen::Ref<Eigen::VectorXd> momentum){
+
+    if(nvec_.size()!=momentum.size()) nvec_.resize(momentum.size());
+    if(boundary_z_.size()!=preImNz_.size()) boundary_z_.resize(preImNz_.size());
+    nvec_.setZero();
+    r.rnorm(boundary_z_);
+    size_t t;
+    for(size_t i=0;i<rows_;i++){
+      for(size_t j=rinds_.coeff(i);j<rinds_.coeff(i+1);j++){
+        nvec_.coeffRef(cinds_.coeff(j)) += rawGradient.coeff(i)*vals_.coeff(j);
+      }
+    }
+
+    double nvecSnorm = (preImNz_.unaryExpr(nvec_)).squaredNorm();
+    double halffac = preImNz_.unaryExpr(momentum).dot(preImNz_.unaryExpr(nvec_))/nvecSnorm;
+    double fac = 2.0*halffac;
+    double scal = halffac + boundary_z_.dot(preImNz_.unaryExpr(nvec_))/nvecSnorm;
+
+    double phi = 0.5*fac*sqrt(nvecSnorm)/preImNz_.unaryExpr(momentum).norm();
+    //std::cout << "phi: " << phi << std::endl;
+    if(fabs(phi)<0.0001){
+      std::cout << "momentum refresh at boundary" << std::endl;
+      if(preImNz_.unaryExpr(nvec_).dot(boundary_z_)>0.0){
+        for(size_t i=0;i<preImNz_.size();i++){
+          momentum.coeffRef(preImNz_.coeff(i)) = boundary_z_.coeff(i);
+        }
+      } else {
+        for(size_t i=0;i<preImNz_.size();i++){
+          momentum.coeffRef(preImNz_.coeff(i)) = -boundary_z_.coeff(i);
+        }
+      }
+    } else {
+
+    if(fac<0.0){
+        for(size_t i=0;i<preImNz_.size();i++){
+          momentum.coeffRef(preImNz_.coeff(i)) = boundary_z_.coeff(i)-scal*nvec_.coeff(preImNz_.coeff(i));
+        }
+      }
+    }
+    return(fac);
+  }
+
 
 
   Eigen::MatrixXd asDense() const {

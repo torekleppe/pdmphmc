@@ -421,6 +421,22 @@ public:
 };
 
 template <>
+class iid_multi_normal_prec_ld<double,stan::math::var,stan::math::var>{
+  const stan::math::var lpdf_;
+
+public:
+  iid_multi_normal_prec_ld(const Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic>& arg,
+                           const Eigen::Matrix<stan::math::var,Eigen::Dynamic,1>& mu,
+                           const SPDmatrix<stan::math::var>& Prec) : lpdf_(iid_multi_normal_prec_lpdf_StanVal(arg,mu,Prec))  {}
+
+  template <class tenPtrType>
+  inline stan::math::var operator()(tenPtrType tensor) const{
+    return(lpdf_);
+  }
+};
+
+
+template <>
 class iid_multi_normal_prec_ld<double,double,stan::math::var>{
   const stan::math::var lpdf_;
 

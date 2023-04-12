@@ -33,7 +33,7 @@ struct specialRootSpec{
   std::vector<constraintFunctor*> spLinFRootFun_;
 
   specialRootSpec() : allowRepeatedRoots_(false) {}
-  //inline bool nonTrivial() const {return linRootJac_.rows()>0 || spLinRootJac_.rows()>0;}
+  inline bool nonTrivial() const {return linRootJac_.rows()>0 || spLinRootJac_.rows()>0 || spLinL1RootJac_.size()>0 || spLinL2RootJac_.size()>0 || spLinFRootJac_.size()>0;}
   friend std::ostream& operator<< (std::ostream& out, const specialRootSpec& obj);
 };
 std::ostream& operator<< (std::ostream& out, const specialRootSpec& obj){

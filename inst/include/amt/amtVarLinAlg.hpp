@@ -128,6 +128,8 @@ inline void matVecProd(const Eigen::MatrixXd& x,
                        Eigen::Matrix<stan::math::var,Eigen::Dynamic,1>& ret){
 
   ret=x*y;
+  //ret = y.coeff(0)*x.col(0);
+  //for(size_t i=1;i<x.cols();i++) ret += y.coeff(i)*x.col(i);
 }
 
 

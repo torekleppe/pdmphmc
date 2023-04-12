@@ -172,10 +172,16 @@ int main(int argc, char *argv[]){
 
 #ifndef _NO_IPS_
   std::cout << "[chain #" << chain_id << "] IPS start" << std::endl;
-  initialPointSolver<modelSpec__> ips(m,dim,dimGen,ci);
+  //initialPointSolver<modelSpec__> ips(m,dim,dimGen,ci);
+  initialPointSolver2<modelSpec__> ips(m,dim,dimGen,ci);
   ips.seed(seed+1000*chain_id+13);
-  if(ips.run(q0)) q0 = ips.bestQ();
-  std::cout << "[chain #" << chain_id << "] IPS end" << std::endl;
+  if(ips.run(q0)) {
+    q0 = ips.bestQ();
+    std::cout << "[chain #" << chain_id << "] IPS end" << std::endl;
+  } else {
+    std::cout << "[chain #" << chain_id << "] IPS failed" << std::endl;
+  }
+  //throw 12;
 #endif
 
 

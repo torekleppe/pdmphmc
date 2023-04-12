@@ -175,6 +175,19 @@ public:
     return(ret);
   }
 
+  // modifiy *this=P(x) to P(x)/x assuming constant term is zero
+  inline void divByVar(){
+    if(std::fabs(coefs_.coeff(0))>1.0e-14){
+      std::cout << "Poly::divByVar() : constant term is not zero !!! : constant term : " << coefs_.coeff(0) << std::endl;
+    }
+    if(order_==0){
+      std::cout << "Poly::divByVar() : applied to constant polynomial !!!" << std::endl;
+    }
+    for(size_t i=0;i<order_;i++) coefs_.coeffRef(i) = coefs_.coeff(i+1);
+    order_--;
+  }
+
+
   inline void polyDiv(const Poly& denom,
                       Poly& q,
                       Poly& r) const {
@@ -192,9 +205,9 @@ public:
       q.coefs_.coeffRef(k) = r.coefs_.coeff(nv+k)/denom.coefs_.coeff(nv);
       for(int j=nv+k-1;j>=k;j--) r.coefs_.coeffRef(j) -= q.coefs_.coeff(k)*denom.coefs_.coeff(j-k);
     }
-    while(std::fabs(q.coefs_.coeff(q.order_))<1.0e-14 && q.order_>0) q.order_--;
+    while(std::fabs(q.coefs_.coeff(q.order_))<1.0e-12 && q.order_>0) q.order_--;
     r.order_ -= n-nv+1;
-    while(std::fabs(r.coefs_.coeff(r.order_))<1.0e-14 && r.order_>0) r.order_--;
+    while(std::fabs(r.coefs_.coeff(r.order_))<1.0e-12 && r.order_>0) r.order_--;
 
     // check (to be removed)
     //std::cout << "original:" << std::endl;
@@ -231,7 +244,10 @@ public:
     double uf = operator()(ub);
     if(lf*uf>0.0){
       std::cout << "bad input in bracketed_root" << std::endl;
-      throw(905);
+      dump();
+      std::cout << "lb: " << lb << "ub: " << ub << std::endl;
+      std::cout << "lf: " << lf << "uf: " << uf << std::endl;
+      throw 234;
     }
     Poly dd = derivative();
     double tb = 0.5*(lb+ub);
@@ -283,9 +299,11 @@ public:
     double ub = b;
     double ret = std::max(b+1.0,std::fabs(b)*2.0);
     sturmChain sc(*this);
+    //sc.dump();
     int li = sc.numSignChanges(lb);
     int ui = sc.numSignChanges(ub);
     //std::cout << "# roots in initial interval : "  << std::abs(li-ui) << std::endl;
+    //std::cout << "li: " << li << "  ui: " << ui << std::endl;
     // no roots in interval
     if(li-ui==0) return(ret);
     // single root in interval

@@ -2,6 +2,29 @@
 #define _HMCPROCESSFIRSTORDERODE_CONSTR_HPP_
 
 
+#ifndef _BOUNDARY_KERNEL_TYPE_
+#define _BOUNDARY_KERNEL_TYPE_ 2
+#endif
+
+#ifdef _COLLISION_BOUNDARY_KERNEL_
+#undef _BOUNDARY_KERNEL_TYPE_
+#define _BOUNDARY_KERNEL_TYPE_ 0
+#endif
+
+#ifdef _EXIT_ANGLE_THRESH_BOUNDARY_KERNEL_
+#undef _BOUNDARY_KERNEL_TYPE_
+#define _BOUNDARY_KERNEL_TYPE_ 1
+#endif
+
+#ifdef _RANDOMIZED_BOUNDARY_KERNEL_
+#undef _BOUNDARY_KERNEL_TYPE_
+#define _BOUNDARY_KERNEL_TYPE_ 2
+#endif
+
+#ifndef _EXIT_ANGLE_THRESH_
+#define _EXIT_ANGLE_THRESH_ 0.08715574 // corresponds to 85 degrees
+#endif
+
 
 
 
@@ -149,6 +172,7 @@ private:
   Eigen::VectorXd normal_vec_;
   Eigen::VectorXd linJacSNorms_,splinJacSNorms_;
   Eigen::VectorXd linJacTmp_;
+  Eigen::VectorXd boundary_z_;
 
   // adaptation related storage
   bool warmup_;
@@ -584,8 +608,6 @@ public:
         } else {
           std::cout << "bad direction into constraint" << std::endl;
         }
-        //std::cout << "old state p\n" << oldState.y.segment(dim_,dim_) << std::endl;
-        //std::cout << "new state p\n" << newState.y.segment(dim_,dim_) << std::endl;
       } else {
         std::cout << "bad rootDim into ODE class::event()" <<std::endl;
         throw(45);
@@ -594,38 +616,136 @@ public:
     } else if (rootOut.rootType_==1) {
       //std::cout << "linear root event #" <<rootOut.rootDim_ << " at time " << rootOut.rootTime_ << std::endl;
       double fac = 2.0*sps_.linRootJac_.row(rootOut.rootDim_).head(dim_).dot(oldState.y.segment(dim_,dim_))/linJacSNorms_.coeff(rootOut.rootDim_);
-      //std::cout << "fac " << fac << std::endl;
       if(fac<0.0) {
-        newState.y.segment(dim_,dim_) -= fac*sps_.linRootJac_.row(rootOut.rootDim_).head(dim_);
+        if constexpr(_BOUNDARY_KERNEL_TYPE_==1){// safeguared collision event
+          double phi = 0.5*fac*sqrt(linJacSNorms_.coeff(rootOut.rootDim_))/oldState.y.segment(dim_,dim_).norm();
+          if(std::fabs(phi)>_EXIT_ANGLE_THRESH_){
+            newState.y.segment(dim_,dim_) -= fac*sps_.linRootJac_.row(rootOut.rootDim_).head(dim_);
+          } else {
+            for(size_t i=0;i<dim_;i++){
+              if(std::fabs(sps_.linRootJac_.coeff(rootOut.rootDim_,i))>1.0e-14){
+                newState.y.coeffRef(dim_+i) = -oldState.y.coeff(dim_+i);
+              }
+            }
+          }
+        } else if constexpr(_BOUNDARY_KERNEL_TYPE_==2) { // randomized collision event
+          Eigen::VectorXd zz(dim_);
+          r_.rnorm(zz);
+          double theta = (zz+oldState.y.segment(dim_,dim_)).dot(sps_.linRootJac_.row(rootOut.rootDim_).head(dim_))/linJacSNorms_.coeff(rootOut.rootDim_);
+          for(size_t i=0;i<dim_;i++){
+            if(std::fabs(sps_.linRootJac_.coeff(rootOut.rootDim_,i))>1.0e-14){
+              newState.y.coeffRef(dim_+i) = zz(i)-theta*sps_.linRootJac_.coeff(rootOut.rootDim_,i);
+            }
+          }
+        } else { // regular collision event
+          newState.y.segment(dim_,dim_) -= fac*sps_.linRootJac_.row(rootOut.rootDim_).head(dim_);
+        }
       } else {
-        std::cout << "lin: trajectory passing into allowed region!!!" << std::endl;
+        std::cout << "lin: trajectory passing into allowed region!!!, fac = " << fac << std::endl;
         std::cout << rootOut << std::endl;
       }
     } else if(rootOut.rootType_==2){
       double fac = 2.0*sps_.spLinRootJac_.rowHeadDot(rootOut.rootDim_,oldState.y.segment(dim_,dim_))/splinJacSNorms_.coeff(rootOut.rootDim_);
       //std::cout << "fac sparse " << fac << std::endl;
       if(fac<0.0) {
-        sps_.spLinRootJac_.scaledRowHeadIncrement(rootOut.rootDim_,-fac,newState.y.segment(dim_,dim_));
+        if constexpr(_BOUNDARY_KERNEL_TYPE_==1){
+          double phi = 0.5*fac*sqrt(splinJacSNorms_.coeff(rootOut.rootDim_))/oldState.y.segment(dim_,dim_).norm();
+          //std::cout << "phi=" << phi << std::endl;
+          if(std::fabs(phi) > _EXIT_ANGLE_THRESH_){
+            sps_.spLinRootJac_.scaledRowHeadIncrement(rootOut.rootDim_,-fac,newState.y.segment(dim_,dim_));
+          } else {
+            size_t rowNz = sps_.spLinRootJac_.rowNz(rootOut.rootDim_);
+            size_t idx;
+            for(size_t i=0;i<rowNz;i++){
+              idx = sps_.spLinRootJac_.getColIndex(rootOut.rootDim_,i);
+              newState.y.coeffRef(dim_+idx) = -newState.y.coeff(dim_+idx);
+            }
+          }
+        } else if constexpr(_BOUNDARY_KERNEL_TYPE_==2) {
+          size_t rowNz = sps_.spLinRootJac_.rowNz(rootOut.rootDim_);
+          size_t idx;
+          if(boundary_z_.size()!=rowNz) boundary_z_.resize(rowNz);
+          r_.rnorm(boundary_z_);
+          double innerProd = 0.0;
+          for(size_t i=0;i<rowNz;i++){
+            idx = sps_.spLinRootJac_.getColIndex(rootOut.rootDim_,i);
+            innerProd += (boundary_z_.coeff(i)+oldState.y.coeff(dim_+idx))*sps_.spLinRootJac_.getValColIndex(rootOut.rootDim_,i);
+          }
+          innerProd /= splinJacSNorms_.coeff(rootOut.rootDim_);
+          for(size_t i=0;i<rowNz;i++){
+            idx = sps_.spLinRootJac_.getColIndex(rootOut.rootDim_,i);
+            newState.y.coeffRef(dim_+idx) = boundary_z_.coeff(i) - innerProd*sps_.spLinRootJac_.getValColIndex(rootOut.rootDim_,i);
+          }
+        } else {
+          sps_.spLinRootJac_.scaledRowHeadIncrement(rootOut.rootDim_,-fac,newState.y.segment(dim_,dim_));
+        }
       } else {
-        std::cout << "sparse lin: trajectory passing into allowed region!!!" << std::endl;
+        std::cout << "sparse lin: trajectory passing into allowed region!!!, fac = " << fac << std::endl;
+        std::cout << rootOut << std::endl;
       }
     } else if(rootOut.rootType_==3){
-      double fac = sps_.spLinL1RootJac_[rootOut.rootDim_].splinStandardizedCollisionMomentumUpdate(
-        (-(sps_.spLinL1RootJac_[rootOut.rootDim_]*oldState.y + sps_.spLinL1RootConst_[rootOut.rootDim_])).array().sign().matrix(),
-        newState.y.segment(dim_,dim_));
-      if(fac>0.0) std::cout << "sparse lin L1: trajectory passing into allowed region!!!" << std::endl;
+      double fac;
+      if constexpr(_BOUNDARY_KERNEL_TYPE_==1){
+        fac = sps_.spLinL1RootJac_[rootOut.rootDim_].splinStandardizedCollisionMomentumUpdate(
+          (-(sps_.spLinL1RootJac_[rootOut.rootDim_]*oldState.y + sps_.spLinL1RootConst_[rootOut.rootDim_])).array().sign().matrix(),
+          newState.y.segment(dim_,dim_),
+          _EXIT_ANGLE_THRESH_);
+      } else if constexpr(_BOUNDARY_KERNEL_TYPE_==2){
+        fac = sps_.spLinL1RootJac_[rootOut.rootDim_].splinStandardizedRandomizedMomentumUpdate(
+          r_,
+          (-(sps_.spLinL1RootJac_[rootOut.rootDim_]*oldState.y + sps_.spLinL1RootConst_[rootOut.rootDim_])).array().sign().matrix(),
+          newState.y.segment(dim_,dim_));
+        //std::cout << "fac: " << fac << std::endl;
+      } else {
+        fac = sps_.spLinL1RootJac_[rootOut.rootDim_].splinStandardizedCollisionMomentumUpdate(
+          (-(sps_.spLinL1RootJac_[rootOut.rootDim_]*oldState.y + sps_.spLinL1RootConst_[rootOut.rootDim_])).array().sign().matrix(),
+          newState.y.segment(dim_,dim_));
 
+      }
+      if(fac>0.0){
+        std::cout << "sparse lin L1: trajectory passing into allowed region!!!, fac : " << fac << std::endl;
+        throw 234;
+      }
     } else if(rootOut.rootType_==4){
-      double fac = sps_.spLinL2RootJac_[rootOut.rootDim_].splinStandardizedCollisionMomentumUpdate(
-        (-(sps_.spLinL2RootJac_[rootOut.rootDim_]*oldState.y + sps_.spLinL2RootConst_[rootOut.rootDim_])),
-        newState.y.segment(dim_,dim_));
+      double fac;
+      //std::cout << "boundary kernel, rootOut: " << rootOut << std::endl;
+      if constexpr(_BOUNDARY_KERNEL_TYPE_==1){
+        fac = sps_.spLinL2RootJac_[rootOut.rootDim_].splinStandardizedCollisionMomentumUpdate(
+          (-(sps_.spLinL2RootJac_[rootOut.rootDim_]*oldState.y + sps_.spLinL2RootConst_[rootOut.rootDim_])),
+          newState.y.segment(dim_,dim_),
+          _EXIT_ANGLE_THRESH_);
+      } else if constexpr(_BOUNDARY_KERNEL_TYPE_==2){
+        fac = sps_.spLinL2RootJac_[rootOut.rootDim_].splinStandardizedRandomizedMomentumUpdate(
+          r_,
+          (-(sps_.spLinL2RootJac_[rootOut.rootDim_]*oldState.y + sps_.spLinL2RootConst_[rootOut.rootDim_])),
+          newState.y.segment(dim_,dim_));
+      } else {
+        fac = sps_.spLinL2RootJac_[rootOut.rootDim_].splinStandardizedCollisionMomentumUpdate(
+          (-(sps_.spLinL2RootJac_[rootOut.rootDim_]*oldState.y + sps_.spLinL2RootConst_[rootOut.rootDim_])),
+          newState.y.segment(dim_,dim_));
+      }
+      //std::cout << "p : " << newState.y.segment(dim_,dim_).transpose() << std::endl;
       if(fac>0.0) {
         std::cout << "sparse lin L2: trajectory passing into allowed region!!!, fac = " << fac << std::endl;
       }
     } else if(rootOut.rootType_==5){
-      double fac = sps_.spLinFRootJac_[rootOut.rootDim_].splinStandardizedCollisionMomentumUpdate(
-        rootOut.auxInfo_,
-        newState.y.segment(dim_,dim_));
+      double fac;
+      if constexpr(_BOUNDARY_KERNEL_TYPE_==1){
+        fac = sps_.spLinFRootJac_[rootOut.rootDim_].splinStandardizedCollisionMomentumUpdate(
+          rootOut.auxInfo_,
+          newState.y.segment(dim_,dim_),
+          _EXIT_ANGLE_THRESH_);
+      } else if constexpr(_BOUNDARY_KERNEL_TYPE_==2) {
+        fac = sps_.spLinFRootJac_[rootOut.rootDim_].splinStandardizedRandomizedMomentumUpdate(
+          r_,
+          rootOut.auxInfo_,
+          newState.y.segment(dim_,dim_));
+
+      } else {
+        fac = sps_.spLinFRootJac_[rootOut.rootDim_].splinStandardizedCollisionMomentumUpdate(
+          rootOut.auxInfo_,
+          newState.y.segment(dim_,dim_));
+      }
       if(fac>0.0) {
         std::cout << "sparse lin Fun: trajectory passing into allowed region!!!, fac = " << fac << std::endl;
       }

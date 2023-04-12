@@ -7,13 +7,22 @@ namespace numUtils{
 // returns smallest real roots of the polynomial a*x^3 + b*x^2 + c*x + d in
 // the interval [lb,ub]
 // if no such real root exists, an arbitrary number > ub is returned
+// if excludeZeroRoot=true, it is implicitly assumed that d=0.0 and that the root x=0 is disregarded
 inline double smallestCubicPolyRootsInInterval(const double lb,
                                                const double ub,
                                                const double a,
                                                const double b,
                                                const double c,
-                                               const double d){
-  Eigen::VectorXd allRoots = cubicPolyRoots(a,b,c,d);
+                                               const double d,
+                                               bool excludeZeroRoot=false){
+  //std::cout << a << " " << b << " " << c << " " << d << std::endl;
+  Eigen::VectorXd allRoots;
+  if(excludeZeroRoot){
+    allRoots = quadraticPolyRoots(a,b,c);
+  } else {
+   allRoots = cubicPolyRoots(a,b,c,d);
+  }
+  //std::cout << allRoots << std::endl;
   double ret = ub + 1.0;
   double x,dev;
   double numFac = std::max(1.0,std::max(std::fabs(lb),std::abs(ub)));

@@ -12,7 +12,7 @@ namespace amt{
  * with diagonal elements exp(x[1:d]). L is unit (ones on the diagonal)
  * lower triangular with (below diagonal) columns
  * (starting from the left-most) corresponding to the remaining elements of
- * x. E.g. d=3 : D = diag(x[1:3]),
+ * x. E.g. d=3 : D = diag(exp(x[1:3])),
  *      [1    0    0]
  *L=    [x[4] 1    0]
  *      [x[5] x[6] 1]

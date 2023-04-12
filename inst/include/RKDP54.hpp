@@ -202,7 +202,7 @@ public:
     }
   }
 
-  rootInfo eventRootSolver(){
+  rootInfo eventRootSolver(const rootInfo& oldRoot){
     int whichEventFirst;
     double time = eventGridSearch(whichEventFirst);
 

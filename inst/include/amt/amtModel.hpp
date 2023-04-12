@@ -313,6 +313,7 @@ public:
     return(ret);
   }
   inline double minConstraint() const {
+    //std::cout << "amtModel::minConstraint() " << splinL2ConstrCount_ << std::endl;
     double ret = 1.0;
     if(nonLinConstrCount_>0){
       for(size_t i=0;i<nonLinConstrCount_;i++) ret = std::min(ret,nonLinConstr_.coeff(i).val());
@@ -333,7 +334,8 @@ public:
     if(splinL2ConstrCount_>0){
       double tmp;
       for(size_t i=0;i<splinL2ConstrCount_;i++){
-        tmp = splinL2rhs_.coeff(i) - asDouble(splinL2lhs_[i]).array().abs().sum();
+        //std::cout << splinL2rhs_.coeff(i) << "   " << asDouble(splinL2lhs_[i]).norm() << std::endl;
+        tmp = splinL2rhs_.coeff(i) - asDouble(splinL2lhs_[i]).norm();
         ret = std::min(ret,tmp);
       }
     }
@@ -380,7 +382,7 @@ public:
         }
       }
       for(size_t i=0;i<splinL2ConstrCount_;i++){
-        tmp = splinL2rhs_.coeff(i) - asDouble(splinL2lhs_[i]).array().abs().sum();
+        tmp = splinL2rhs_.coeff(i) - asDouble(splinL2lhs_[i]).norm();
         if(tmp<0.0){
           std::cout << "sparselinL2Constraint # " << i+1 << " evaluates to " <<  tmp << std::endl;
         }

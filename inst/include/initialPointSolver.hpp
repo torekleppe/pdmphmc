@@ -129,7 +129,7 @@ public:
 
   void setCurrentQ(const Eigen::VectorXd& cq){ q_curr_ = cq;}
 
-  inline size_t generatedDim() const {return 5;}
+  inline size_t generatedDim() const {return 6;}
   inline size_t eventRootDim() const {return ci_.numNonLin_;}
   inline size_t dim() const {return 2*dim_;}
   void ode(const double time,
@@ -146,6 +146,7 @@ public:
     gen.coeffRef(2) = grad_tmp_.dot(y.segment(dim_,dim_)); // log-density time derivative
     gen.coeffRef(3) = (y.head(dim_)-q_curr_).dot(y.segment(dim_,dim_)); // NUT-criterion
     gen.coeffRef(4) = -gen.coeff(0) + gen.coeff(1); // hamiltonian
+    gen.coeffRef(5) = mdl_.minConstraint();
     f.segment(dim_,dim_) = grad_tmp_;
 
 
@@ -224,12 +225,16 @@ public:
       //std::cout << "L2 fac " << fac <<  std::endl;
       if(fac>0.0)  std::cout << "sparse lin L2: trajectory passing into allowed region!!!" << std::endl;
     } else if(rootOut.rootType_==5){
-      //std::cout << "event : " << rootOut.auxInfo_ << std::endl;
+      //std::cout << "event : \n" << rootOut << "\n aux info size: " << rootOut.auxInfo_.size() << std::endl;
+      //std::cout << "Jac: " << sps_.spLinFRootJac_[rootOut.rootDim_] << std::endl;
       double fac = sps_.spLinFRootJac_[rootOut.rootDim_].splinStandardizedCollisionMomentumUpdate(rootOut.auxInfo_,newState.y.segment(dim_,dim_));
+
       //std::cout << "event: fac: " << fac << std::endl;
       if(fac>0.0)  std::cout << "sparse lin fun: trajectory passing into allowed region!!!" << std::endl;
-
-
+    } else if(rootOut.rootType_==111){
+      // regular momentum refresh
+      //std::cout << "momentum refresh" << std::endl;
+      newState.y.segment(dim_,dim_) = rootOut.auxInfo_;
     } else {
       std::cout << "special roots type " << rootOut.rootType_ << " not implemented in IPSode" << std::endl;
       throw(12);
@@ -241,6 +246,171 @@ public:
 
   inline const specialRootSpec& spr() const {return sps_;}
 };
+
+
+template <class targetType>
+class initialPointSolver2{
+  IPSode<targetType> ode_;
+  RKBS32< IPSode<targetType> > rk_;
+  size_t dim_;
+  size_t dimGen_;
+  rng r_;
+  stabilityMonitor mon_;
+  Eigen::VectorXd y_,bestQ_,pp_,ptmp_,grad_tmp_;
+  void updateEps(){
+    rk_.eps_ *= std::min(5.0,std::max(0.2,0.95*std::pow(rk_.stepErr_,-0.333)));
+  }
+public:
+  initialPointSolver2(targetType &t,
+                     const size_t dim,
+                     const size_t dimGen,
+                     const amt::constraintInfo& ci) : ode_(t,dim,dimGen,ci), dim_(dim),dimGen_(dimGen),mon_(10) {
+    rk_.setup(ode_);
+    rk_.absTol_ = 1.0e-3;
+    rk_.relTol_ = 1.0e-3;
+    rk_.eps_ = 0.5;
+    y_.resize(ode_.dim());
+    pp_.resize(dim_);
+    grad_tmp_.resize(dim_);
+  }
+
+  void seed(const size_t s){r_.seed(s);}
+  bool run(const Eigen::VectorXd& q0){
+    // initial state
+    bestQ_ = q0;
+    ode_.setCurrentQ(q0);
+    y_.head(dim_) = q0;
+    r_.rnorm(y_.tail(dim_));
+
+
+    bool initOK = rk_.setInitialState(odeState(y_));
+
+    if(!initOK){
+      std::cout << "bad initial point in IPS" << std::endl;
+      return(false);
+    }
+
+    // kinetic energy threshold
+    double kinEnergyThresh = 0.5*(static_cast<double>(dim_) +  _IPS_NSTDS_*sqrt(2.0*static_cast<double>(dim_)));
+
+    // assorted storage
+    rootInfo oldRoot,rootOut;
+    int nacc = 0;
+    int nstep = 0;
+    int maxSteps = 20000;
+    double rho = 0.9;
+    bool stepGood,stepFlag,lastCollision=false,reduceEps;
+    double nextu = -1.0;
+    double reducedEps;
+    Eigen::VectorXd firstGen;
+    Eigen::VectorXd lastGen(ode_.generatedDim());
+
+    // main integration loop
+
+    while(nstep< maxSteps){
+      stepGood = false;
+      while(nstep<maxSteps){
+        stepFlag = rk_.step();
+        nstep++;
+        if(stepFlag){
+          if(rk_.stepErr_<1.0){
+            nacc++;
+            stepGood=true;
+            break;
+          } else {
+            updateEps();
+          }
+        } else {
+          rk_.eps_ *= 0.1;
+        }
+      }
+      // first event time simulated once step size is known
+      if(nextu<0.0) nextu = -log(r_.runif())*10.0*rk_.eps_;
+
+
+      //std::cout << "step done, eps_ :" << rk_.eps_ << std::endl;
+      rootOut = rk_.eventRootSolver(oldRoot);
+      oldRoot = rootOut;
+      //std::cout << rootOut << std::endl;
+
+      firstGen = rk_.firstGenerated();
+      rk_.denseGenerated_Level(rootOut.rootTime_,lastGen);
+
+      //std::cout << "lp: " << lastGen(0) << std::endl;
+      //std::cout << "min constraint " << lastGen(5) << std::endl;
+
+      //if(lastGen(5)<-1.0e-3) throw 23;
+
+      reduceEps = false;
+
+      if(rootOut.rootDim_!=-1){
+        //std::cout << "collision event" << std::endl;
+        rk_.event(rootOut);
+        if(lastCollision){
+          reduceEps=true;
+          reducedEps = 0.5*rootOut.rootTime_;
+        }
+        lastCollision = true;
+      } else {
+
+
+        lastCollision = false;
+        if(rk_.t_left_>nextu){
+//          std::cout << "pdmp event" << std::endl;
+          while(nextu<rk_.t_left_) nextu += -log(r_.runif())*10.0*rk_.eps_;
+
+          ptmp_ = rk_.lastState().y.tail(dim_);
+          ptmp_ *= (std::sqrt(static_cast<double>(dim_))/ptmp_.norm());
+          r_.rnorm(pp_);
+          rk_.event(rootInfo(rk_.eps_,111,-1,rho*ptmp_+sqrt(1.0-rho*rho)*pp_));
+          mon_.push(lastGen.coeff(0));
+          bestQ_ = rk_.lastState().y.head(dim_);
+
+        } else if (lastGen(1)>kinEnergyThresh){
+//          std::cout << "kinetic energy reduced" << std::endl;
+          pp_ = rk_.lastState().y.tail(dim_);
+          pp_ *= (std::sqrt(static_cast<double>(dim_))/pp_.norm());
+          rk_.event(rootInfo(rk_.eps_,111,-1,pp_));
+        }
+      }
+
+
+
+      // check if stopping criteria are fulfilled
+      if(mon_.hasSufficientData()){
+        if(mon_.isStable_regression()){
+          std::cout << "initialPointSolver done" << std::endl;
+          return(true);
+        }
+      }
+
+
+      // prepare for next step
+      rk_.prepareNext();
+      updateEps();
+      // avoid that collisions appear in each integrator step / vibration behaviour
+      if(reduceEps) rk_.eps_ = reducedEps;
+    } // main time stepping loop
+
+
+    return(false);
+  }
+
+  Eigen::VectorXd bestQ() {
+    ode_.targetGradient(bestQ_,grad_tmp_);
+    if(! grad_tmp_.array().isFinite().all()){
+      std::cout << "IPS solver returned point with inifite gradient, exiting" << std::endl;
+      throw 345;
+    }
+    if(ode_.minConstraint()<-1.0e-3){
+      std::cout << "IPS solver returned point violating constraints, exiting" << std::endl;
+      std::cout << "minimum constraint: " << ode_.minConstraint() << std::endl;
+      throw 1345;
+    }
+    return bestQ_;
+  }
+};
+
 
 
 
@@ -274,9 +444,15 @@ class initialPointSolver{
     // simple steepest descent method with fairly accurate line search
     par_tmp_ = q_curr_;
     double obj0 = ode_.targetGradient(par_tmp_,grad_tmp_);
+
 #ifdef _IPS_DEBUG_
-    std::cout << "optimize: target : " << obj0 << std::endl;
+    std::cout << "optimize, intial target : " << obj0 << std::endl;
+    std::cout << "optimize, initial min constraint : " << ode_.minConstraint() << std::endl;
 #endif
+    if(ode_.minConstraint()< 0.0){
+      std::cout << "constraint violated at the start of optimization step, exiting" << std::endl;
+      throw 234;
+    }
     Eigen::VectorXd sdir = (1.0/std::max(grad_tmp_.norm(),1.0))*grad_tmp_;
     Eigen::VectorXd lastGood = q_curr_;
 
@@ -296,9 +472,9 @@ class initialPointSolver{
       par_tmp_ = q_curr_+a*sdir;
       obj = ode_.targetGradient(par_tmp_,grad_tmp_);
 #ifdef _IPS_DEBUG_
-      std::cout << "bisection: target : " << obj0 << "\t minConstraint: " << mdl_.minConstraint() << std::endl;
+      std::cout << "bisection: target : " << obj0 << "\t minConstraint: " << ode_.minConstraint() << std::endl;
 #endif
-      if(std::isfinite(obj) && ode_.minConstraint()>-1.0e-4){
+      if(std::isfinite(obj) && ode_.minConstraint()>0.0){
         if(obj>obj0){
           progressMade = true;
           lastGood = par_tmp_;
@@ -468,7 +644,7 @@ class initialPointSolver{
 
       // check if collisions occurred
       rootInfo ri = rk_.eventRootSolver(oldRoot);
-      //std::cout << ri << std::endl;
+      std::cout << ri << std::endl;
       oldRoot = ri;
 
       //throw(1);
@@ -530,11 +706,23 @@ class initialPointSolver{
 
     } // main integration loop
     mon_.push(lastGen.coeff(0));
+
     return(eflag);
   }
 
 public:
-  Eigen::VectorXd bestQ(){return q_curr_;}
+  Eigen::VectorXd bestQ(){
+    ode_.targetGradient(q_curr_,grad_tmp_);
+    if(! grad_tmp_.array().isFinite().all()){
+      std::cout << "IPS solver returned point with inifite gradient, exiting" << std::endl;
+      throw 345;
+    }
+    if(ode_.minConstraint()<-1.0e-3){
+      std::cout << "IPS solver returned point violating constraints, exiting" << std::endl;
+      throw 1345;
+    }
+    return q_curr_;
+  }
   void seed(const size_t s){r_.seed(s);}
 
 
@@ -573,7 +761,7 @@ public:
     y_tmp_.head(dim_) = q0;
     bool firstEvalOK = rk_.setInitialState(odeState(y_tmp_));
     if(! firstEvalOK){
-      std::cout << "first gradient evaluation failed; please provide a different initial point" << std::endl;
+      std::cout << "IPS: first gradient evaluation failed; please provide a different initial point" << std::endl;
       return(false);
     }
 
@@ -581,7 +769,7 @@ public:
     int iret;
     int oret;
 
-    for(size_t l=0;l<200; l++){
+    for(size_t l=0;l<200; l++){ // change to 200
       //std::cout << "l : " << l << std::endl;
       if(mon_.hasSufficientData()){
         if(mon_.isStable_regression()){
@@ -591,7 +779,9 @@ public:
       }
       //std::cout << "integrate:" << std::endl;
       iret = integrate();
-      //std::cout << "integrate exit flag: " << iret << std::endl;
+#ifdef _IPS_DEBUG_
+      std::cout << "integrate exit flag: " << iret << std::endl;
+#endif
       if(iret<0){
         // do optimization step
         //std::cout << "optimize:" << std::endl;

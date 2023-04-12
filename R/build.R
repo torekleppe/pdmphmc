@@ -82,11 +82,12 @@ build <- function(model.file,
   if(process.type=="RMHMCProcess"){
     metric.tensor.type <- match.arg(metric.tensor.type)
     tensorType <- paste0("metricTensor",metric.tensor.type)
+    message("metric tensor type : ",tensorType)
+
   } else {
     tensorType <- "metricTensorDummy"
   }
   header <- paste0(header," typedef ",tensorType," metricTensorType__;\n")
-  message("metric tensor type : ",tensorType)
 
 
   if(amt){

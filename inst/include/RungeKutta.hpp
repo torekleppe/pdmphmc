@@ -329,7 +329,7 @@ public:
       // carry out what ever happened at the event
       if(rootOut.rootDim_ != -1 ){
 
-        if(rootOut.rootTime_==(*ode_).warmupRoot()){
+        if(rootOut.rootType_==0 && rootOut.rootDim_==(*ode_).warmupRoot()){
           auto warmup_time = std::chrono::high_resolution_clock::now();
           std::chrono::duration<double> warmup_elapsed = warmup_time-start_time;
           CPUtime_(0) = warmup_elapsed.count();

@@ -112,7 +112,7 @@ class RKBS32{
   }
 
   Eigen::VectorXd Sy0_,Sy1_,Sf0_,Sf1_,Sydif_,Sa_,Sb_;
-  inline rootInfo splinRootSolver(){
+  inline rootInfo splinRootSolver(const rootInfo& oldRoot){
     double ret = eps_;
     int whichDim = -1;
     //std::cout << "splinRootSolver" << std::endl;
@@ -130,11 +130,12 @@ class RKBS32{
     Sb_ = -(2.0*Sf0_ + Sf1_ + 3.0*Sydif_);
     double cand,dev,x;
     for(int i=0;i<Sy0_.size();i++){
-      cand = eps_*numUtils::smallestCubicPolyRootsInInterval(1.0e-12,1.0,
+      cand = eps_*numUtils::smallestCubicPolyRootsInInterval(0.0,1.0,
                                                              Sa_.coeff(i),
                                                              Sb_.coeff(i),
                                                              Sf0_.coeff(i),
-                                                             Sy0_.coeff(i));
+                                                             Sy0_.coeff(i),
+                                                             oldRoot.rootType_==2 && oldRoot.rootDim_ == i);
       if(cand<ret){
         ret = cand;
         whichDim = i;
@@ -144,7 +145,7 @@ class RKBS32{
   }
 
   Eigen::VectorXd Ty0_,Ty1_,Tf0_,Tf1_,Tydif_,Ta_,Tb_;
-  inline rootInfo linRootSolver(){
+  inline rootInfo linRootSolver(const rootInfo& oldRoot){
     double ret = eps_;
     int whichDim = -1;
     //std::cout << "linRootSolver" << std::endl;
@@ -161,11 +162,12 @@ class RKBS32{
     Tb_ = -(2.0*Tf0_ + Tf1_ + 3.0*Tydif_);
     double cand,dev,x;
     for(int i=0;i<Ty0_.size();i++){
-      cand = eps_*numUtils::smallestCubicPolyRootsInInterval(1.0e-12,1.0,
+      cand = eps_*numUtils::smallestCubicPolyRootsInInterval(0.0,1.0,
                                                              Ta_.coeff(i),
                                                              Tb_.coeff(i),
                                                              Tf0_.coeff(i),
-                                                             Ty0_.coeff(i));
+                                                             Ty0_.coeff(i),
+                                                             oldRoot.rootType_==1 && oldRoot.rootDim_ == i);
       if(cand<ret){
         ret = cand;
         whichDim = i;
@@ -178,10 +180,10 @@ class RKBS32{
   std::vector<Eigen::VectorXd> L1y0_,L1y1_,L1f0_,L1f1_,L1ydif_,L1a_,L1b_,L1sign_;
   Eigen::VectorXd L1flipTimes_;
   Eigen::VectorXi L1flipInds_;
-  inline rootInfo splinL1RootSolver(){
+  inline rootInfo splinL1RootSolver(const rootInfo& oldRoot){
     double ret = eps_;
     int whichDim = -1;
-    //std::cout << "splinL1RootSolver" << std::endl;
+    //std::cout << "splinL1RootSolver : oldRoot : " << oldRoot << std::endl;
     if((*ode_).spr().spLinL1RootJac_.size()<1) return(rootInfo(ret,3,whichDim));
 
     //std::cout << "non-trivial special root" << std::endl;
@@ -198,14 +200,16 @@ class RKBS32{
       }
     }
     int nSignFlip;
-    double tl,tu,teval,cand;
+    double tl,tu,teval,cand,polyConst;
     // loop over the different constraints
     for(size_t i=0;i<(*ode_).spr().spLinL1RootJac_.size();i++){
       L1y0_[i] = (*ode_).spr().spLinL1RootJac_[i]*ys_.col(0)+(*ode_).spr().spLinL1RootConst_[i];
       L1y1_[i] = (*ode_).spr().spLinL1RootJac_[i]*ys_.col(3)+(*ode_).spr().spLinL1RootConst_[i];
 
-      //std::cout << L1y0_[i] << std::endl;
+      //std::cout << "solver, init L1: " << L1y0_[i].array().abs().sum() -(*ode_).spr().spLinL1RootRhs_[i] << std::endl;
+      //std::cout << "eps : " << eps_ << std::endl;
       //std::cout << L1y1_[i] << std::endl;
+      //std::cout << L1y0_[i].transpose() << std::endl;
 
       L1f0_[i] = eps_*((*ode_).spr().spLinL1RootJac_[i]*force_.col(0));
       L1f1_[i] = eps_*((*ode_).spr().spLinL1RootJac_[i]*force_.col(3));
@@ -235,19 +239,32 @@ class RKBS32{
           // evaluate sign at interior point at first
           teval = 0.5*(tl+tu);
           L1sign_[i] = (teval*(teval*(teval*L1a_[i] + L1b_[i]) + L1f0_[i]) +  L1y0_[i]).array().sign().matrix();
+
         } else {
           L1sign_[i].coeffRef(L1flipInds_.coeff(interval-1)) *= -1.0;
         }
 
         //std::cout << "interval searched : " << tl << " " << tu << std::endl;
         //std::cout << L1sign_[i] << std::endl;
+        polyConst = L1y0_[i].dot(L1sign_[i])-(*ode_).spr().spLinL1RootRhs_[i];
+/*
+        if(interval==0 && oldRoot.rootType_==3 && oldRoot.rootDim_ == i) {
+          polyConst = 0.0;
 
+          std::cout  << std::setprecision (15) << L1a_[i].dot(L1sign_[i]) << std::endl;
+          std::cout  << std::setprecision (15) << L1b_[i].dot(L1sign_[i]) << std::endl;
+          std::cout  << std::setprecision (15) << L1f0_[i].dot(L1sign_[i]) << std::endl;
+          std::cout  << std::setprecision (15) << L1y0_[i].dot(L1sign_[i])-(*ode_).spr().spLinL1RootRhs_[i] << std::endl;
+        }
+*/
         cand = numUtils::smallestCubicPolyRootsInInterval(std::max(1.0e-12,tl),tu,
                                                           L1a_[i].dot(L1sign_[i]),
                                                           L1b_[i].dot(L1sign_[i]),
                                                           L1f0_[i].dot(L1sign_[i]),
-                                                          L1y0_[i].dot(L1sign_[i])-(*ode_).spr().spLinL1RootRhs_[i]);
+                                                          polyConst,
+                                                          interval==0 && oldRoot.rootType_==3 && oldRoot.rootDim_ == i);
 
+        //std::cout << "cand : " << cand << std::endl;
         if(cand <= tu){
           //std::cout << "candidate constraint pass found: " << cand << std::endl;
           if(cand*eps_ < ret){
@@ -263,18 +280,20 @@ class RKBS32{
           }
           break;
         }
-        tl = tu;
+        tl = tu; // update lower bound
       } // end loop over interval within constraint
     }// end loop over the different constraints
+    //std::cout << "ret: " << ret << " whichDim: " << whichDim << std::endl;
+    //if(ret<1.0e-5) throw 23;
     return(rootInfo(ret,3,whichDim));
   }
 
   std::vector<Eigen::VectorXd> L2y0_,L2y1_,L2f0_,L2f1_,L2ydif_,L2a_,L2b_;
   std::vector<double> L2SqRhs_;
-  inline rootInfo splinL2RootSolver(){
+  inline rootInfo splinL2RootSolver(const rootInfo& oldRoot){
     double ret = eps_;
     int whichDim = -1;
-    //std::cout << "splinL2RootSolver" << std::endl;
+    //std::cout << "splinL2RootSolver, old root: " << oldRoot << std::endl;
     //dumpStep();
     if((*ode_).spr().spLinL2RootJac_.size()<1) return(rootInfo(ret,4,whichDim));
 
@@ -311,7 +330,18 @@ class RKBS32{
 
       L2poly = numUtils::sumOfSquaredCubics(L2a_[i],L2b_[i],L2f0_[i],L2y0_[i]);
       L2poly.addConstant(-L2SqRhs_[i]);
-      cand = L2poly.smallestRootInInterval(1.0e-11,1.0);
+
+      // handle case of repeated roots by dividing polynomial by its variable
+
+      //std::cout << "L2 solver poly at zero: " << L2poly(0.0)  << std::endl;
+      //L2poly.dump();
+
+      if(oldRoot.rootDim_==i && oldRoot.rootType_==4 && !(*ode_).spr().allowRepeatedRoots_){
+        L2poly.divByVar();
+      }
+      //L2poly.dump();
+      //std::cout << L2y0_[i].transpose() << std::endl;
+      cand = L2poly.smallestRootInInterval(1.0e-10,1.0);
       if(eps_*cand<ret){
         ret = eps_*cand;
         whichDim = i;
@@ -324,6 +354,8 @@ class RKBS32{
          */
       }
     }
+    //std::cout << "whichdim : " << whichDim << std::endl;
+    //if(oldRoot.rootTime_<1.0e-12) throw 234;
     return(rootInfo(ret,4,whichDim));
   }
 
@@ -390,9 +422,14 @@ class RKBS32{
            (!(*ode_).spr().allowRepeatedRoots_ && oldRoot.rootDim_==i && oldRoot.rootType_==5))){
           // if left endpoint is a root, set fun value equal to derivative in
           // order to avoid numerical rounding interferes with bracketing
+          //std::cout << "ff: " << Fvals_(0) << std::endl;
           leftRoot = true;
           dev = (*((*ode_).spr().spLinFRootFun_[i]))(Fy0_[i],Fgrad_[i]);
+          //std::cout << Fgrad_[i] << std::endl;
           Fvals_.coeffRef(0) = Ff0_[i].dot(Fgrad_[i]);
+          if(Fvals_.coeffRef(0)<0.0){
+            std::cout << "bad gradient at left endpoint in splinFRootSolver" << std::endl;
+          }
         }
 
         if(g>0 && Fvals_.coeff(g-1)*Fvals_.coeff(g)<=0.0){
@@ -406,6 +443,8 @@ class RKBS32{
           break;
         }
       }
+
+      //std::cout << "Fvals:" << Fvals_.transpose() << std::endl;
 
       // refine bracket if root is found in the first grid interval, and another
       // root is present at left endpoint (to avoid repeating the same root many times)
@@ -531,11 +570,12 @@ public:
   inline odeState lastState() const {return(odeState(ys_.col(3)));}
 
   inline rootInfo eventRootSolver(const rootInfo& oldRoot){
-    rootInfo ret = linRootSolver();
-    ret.earliest(splinRootSolver());
+    //std::cout << "old root: " << oldRoot << std::endl;
+    rootInfo ret = linRootSolver(oldRoot);
+    ret.earliest(splinRootSolver(oldRoot));
     ret.earliest(nonlinRootSolver());
-    ret.earliest(splinL1RootSolver());
-    ret.earliest(splinL2RootSolver());
+    ret.earliest(splinL1RootSolver(oldRoot));
+    ret.earliest(splinL2RootSolver(oldRoot));
     ret.earliest(splinFRootSolver(oldRoot));
     return(ret);
   }
@@ -576,12 +616,12 @@ public:
     t_left_ = 0.0;
     ys_.col(0) = y0.y;
 
-
+//std::cout << "before eval" << std::endl;
     // first evaluation
     (*ode_).ode(t_left_,
      ys_.col(0),force_tmp_,gen_tmp_,diag_tmp_);
 
-    //std::cout << "eval done " << dimEvent_ << std::endl;
+//    std::cout << "eval done " << dimEvent_ << std::endl;
 
     force_.col(0) = force_tmp_;
     if(dimGenerated_>0) generated_.col(0) = gen_tmp_;
@@ -590,7 +630,7 @@ public:
 
     events_.col(0) = (*ode_).eventRoot(0.0,odeState(ys_.col(0)),force_.col(0),true);
 
-    //std::cout << "eventRoot done " << events_.col(0) << std::endl;
+ //   std::cout << "eventRoot done " << events_.col(0) << std::endl;
 
     //dumpStep();
     return(force_.col(0).array().isFinite().all());
@@ -702,8 +742,6 @@ public:
 
     return(true);
   }
-
-
 
 
 
