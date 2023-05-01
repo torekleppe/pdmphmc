@@ -662,19 +662,47 @@ public:
             }
           }
         } else if constexpr(_BOUNDARY_KERNEL_TYPE_==2) {
-          size_t rowNz = sps_.spLinRootJac_.rowNz(rootOut.rootDim_);
-          size_t idx;
-          if(boundary_z_.size()!=rowNz) boundary_z_.resize(rowNz);
-          r_.rnorm(boundary_z_);
-          double innerProd = 0.0;
-          for(size_t i=0;i<rowNz;i++){
-            idx = sps_.spLinRootJac_.getColIndex(rootOut.rootDim_,i);
-            innerProd += (boundary_z_.coeff(i)+oldState.y.coeff(dim_+idx))*sps_.spLinRootJac_.getValColIndex(rootOut.rootDim_,i);
-          }
-          innerProd /= splinJacSNorms_.coeff(rootOut.rootDim_);
-          for(size_t i=0;i<rowNz;i++){
-            idx = sps_.spLinRootJac_.getColIndex(rootOut.rootDim_,i);
-            newState.y.coeffRef(dim_+idx) = boundary_z_.coeff(i) - innerProd*sps_.spLinRootJac_.getValColIndex(rootOut.rootDim_,i);
+          double phi = 0.5*fac*sqrt(splinJacSNorms_.coeff(rootOut.rootDim_))/oldState.y.segment(dim_,dim_).norm();
+
+          if(std::fabs(phi)>0.0001){
+            size_t rowNz = sps_.spLinRootJac_.rowNz(rootOut.rootDim_);
+            size_t idx;
+            if(boundary_z_.size()!=rowNz) boundary_z_.resize(rowNz);
+            r_.rnorm(boundary_z_);
+            double innerProd = 0.0;
+            for(size_t i=0;i<rowNz;i++){
+              idx = sps_.spLinRootJac_.getColIndex(rootOut.rootDim_,i);
+              innerProd += (boundary_z_.coeff(i)+oldState.y.coeff(dim_+idx))*sps_.spLinRootJac_.getValColIndex(rootOut.rootDim_,i);
+            }
+            innerProd /= splinJacSNorms_.coeff(rootOut.rootDim_);
+            for(size_t i=0;i<rowNz;i++){
+              idx = sps_.spLinRootJac_.getColIndex(rootOut.rootDim_,i);
+              newState.y.coeffRef(dim_+idx) = boundary_z_.coeff(i) - innerProd*sps_.spLinRootJac_.getValColIndex(rootOut.rootDim_,i);
+            }
+          } else {
+            std::cout << "phi : " << phi << std::endl;
+            std::cout << "independent momentum refresh at boundary" << std::endl;
+            size_t rowNz = sps_.spLinRootJac_.rowNz(rootOut.rootDim_);
+            size_t idx;
+            if(boundary_z_.size()!=rowNz) boundary_z_.resize(rowNz);
+            r_.rnorm(boundary_z_);
+            double innerProd = 0.0;
+            for(size_t i=0;i<rowNz;i++){
+              idx = sps_.spLinRootJac_.getColIndex(rootOut.rootDim_,i);
+              innerProd += boundary_z_.coeff(i)*sps_.spLinRootJac_.getValColIndex(rootOut.rootDim_,i);
+            }
+            if(innerProd>0.0){
+              for(size_t i=0;i<rowNz;i++){
+                idx = sps_.spLinRootJac_.getColIndex(rootOut.rootDim_,i);
+                newState.y.coeffRef(dim_+idx) = boundary_z_.coeff(i);
+              }
+            } else {
+              for(size_t i=0;i<rowNz;i++){
+                idx = sps_.spLinRootJac_.getColIndex(rootOut.rootDim_,i);
+                newState.y.coeffRef(dim_+idx) = -boundary_z_.coeff(i);
+              }
+            }
+
           }
         } else {
           sps_.spLinRootJac_.scaledRowHeadIncrement(rootOut.rootDim_,-fac,newState.y.segment(dim_,dim_));

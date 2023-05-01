@@ -88,7 +88,7 @@ public:
   // timing
   Eigen::VectorXd CPUtime_;
 
-  rungeKuttaSolver() : dim_(0), maxSteps_(10000), PI_beta_(0.08), PI_alpha_(0.14)  {}
+  rungeKuttaSolver() : dim_(0), maxSteps_(20000), PI_beta_(0.08), PI_alpha_(0.14)  {}
   inline int odeOrder() const {return step_.odeOrder();}
   void setup(_ode_type_ &ode){
 
@@ -260,6 +260,14 @@ public:
             last_print_time = print_now;
           }
         }
+        auto print_now_clock = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed_clock = print_now_clock - last_print_time;
+        if(elapsed_clock.count()>60.0){
+          std::cout << printPrefix_ << " t = " << step_.t_right_ << " (done with " <<
+            100.0*(step_.t_right_)/Tmax_ << "% of simulation)" << std::endl;
+          last_print_time = print_now_clock;
+        }
+
       }
 
       //

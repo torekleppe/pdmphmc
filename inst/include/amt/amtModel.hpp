@@ -354,7 +354,7 @@ public:
       return true;
     }
     if(minConstraint()>=0.0){
-      std::cout << "constraints OK" << std::endl;
+      //std::cout << "constraints OK" << std::endl;
       return true;
     } else {
       std::cout << "the following constraints are violated" << std::endl;

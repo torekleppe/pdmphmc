@@ -379,7 +379,7 @@ public:
       // check if stopping criteria are fulfilled
       if(mon_.hasSufficientData()){
         if(mon_.isStable_regression()){
-          std::cout << "initialPointSolver done" << std::endl;
+          //std::cout << "initialPointSolver done" << std::endl;
           return(true);
         }
       }

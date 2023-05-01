@@ -205,6 +205,43 @@ public:
     return(ret);
   }
 
+  // computes (double representation of) P*b where P=*this and b is double vector
+
+  inline Eigen::VectorXd vecProd_double(const Eigen::VectorXd& b) const {
+    if(n_ != b.size()){
+      throw std::runtime_error("SPDmatrix::vecProd_double : b incompatible with SPDmatrix");
+    }
+    Eigen::VectorXd y(n_),ret(n_);
+    // compute y=L^T*b
+    size_t k=n_;
+    for(size_t i=0;i<n_;i++){
+      y.coeffRef(i) = b.coeff(i);
+      for(size_t j=i+1;j<n_;j++){
+        y.coeffRef(i) += b.coeff(j)*asDouble(x_.coeff(k));
+        k++;
+      }
+    }
+    // compute y = Lam*y
+    for(size_t i=0;i<n_;i++) y.coeffRef(i)*=asDouble(Lam_.coeff(i));
+    // compute ret = L*y
+    ret.setZero();
+    k = n_;
+    for(size_t i=0;i<n_;i++){
+      ret.coeffRef(i) += y.coeff(i);
+      for(size_t j=i+1;j<n_;j++){
+        ret.coeffRef(j) += y.coeff(i)*asDouble(x_.coeff(k));
+        k++;
+      }
+    }
+/*
+    Eigen::MatrixXd test=asDoubleMatrix();
+    std::cout << "test: " << (test*b-ret).transpose() << std::endl;
+    std::cout << test << std::endl;
+    throw 123;
+ */
+    return(ret);
+  }
+
   // computes b^T*P[leading_dim..n-1,leading_dim..n-1]^{-1}*b
   template <class bType>
   inline stan::math::var quad_form_inv_StanVal(const Eigen::Matrix<bType,Eigen::Dynamic,1>& b,
@@ -263,8 +300,6 @@ public:
       rhoDim++;
       i--;
     }
-
-
   }
 
 

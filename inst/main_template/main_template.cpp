@@ -42,7 +42,7 @@ int main(int argc, char *argv[]){
   // read data from file
   int dataEflag = dta__.fromFile(fileNameBase+"_data.json");
   if(dataEflag != 0 ) return(dataEflag);
-  std::cout << "reading of data done" << std::endl;
+  std::cout << "[chain #" << chain_id << "] reading of data done" << std::endl;
 
   // run the preprocess function
   m.preProcess();
@@ -55,7 +55,11 @@ int main(int argc, char *argv[]){
   modelSymb.finalize();
 
   // verify that any/the constraints are OK
-  if(! modelSymb.checkConstraints()){ throw(597);}
+  if(! modelSymb.checkConstraints()){
+    throw(597);
+  } else {
+    std::cout << "[chain #" << chain_id << "] constraints OK" << std::endl;
+  }
 
   // get default parameter
   Eigen::VectorXd q0(modelSymb.dim());

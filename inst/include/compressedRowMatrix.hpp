@@ -322,10 +322,15 @@ public:
         }
       }
     } else {
-
+    double tmp1;
     if(fac<0.0){
         for(size_t i=0;i<preImNz_.size();i++){
-          momentum.coeffRef(preImNz_.coeff(i)) = boundary_z_.coeff(i)-scal*nvec_.coeff(preImNz_.coeff(i));
+          tmp1 = nvec_.coeff(preImNz_.coeff(i));
+#ifndef _RANDBOUNCE_NO_SPARSITY_CHECK_
+          if(std::fabs(tmp1)>1.0e-14) momentum.coeffRef(preImNz_.coeff(i)) = boundary_z_.coeff(i)-scal*tmp1;
+#else
+          momentum.coeffRef(preImNz_.coeff(i)) = boundary_z_.coeff(i)-scal*tmp1;
+#endif
         }
       }
     }
