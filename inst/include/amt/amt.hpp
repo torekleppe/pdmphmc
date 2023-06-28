@@ -14,13 +14,16 @@
 
 #include "amtVarLinAlg.hpp"
 #include "amtPackedSym.hpp"
-#include "amtPrecCond.hpp"
+
 
 //#include "amtLpdfReturnTypes.hpp"
 #include "amtCommonNameSpace.hpp"
 // specialized data types
 #include "amtSPDmatrix.hpp"
 #include "amtTriDiagChol.hpp"
+
+// preconditioning
+#include "amtPreCond.hpp"
 
 // model specification
 #include "amtModel.hpp"

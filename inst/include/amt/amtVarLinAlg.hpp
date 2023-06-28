@@ -138,7 +138,7 @@ inline void matVecProd(const Eigen::MatrixXd& x,
  * NOTE: amtVar overload not implemented yet
  */
 inline void matVecProd(const Eigen::Matrix<stan::math::var,Eigen::Dynamic,Eigen::Dynamic>& lhs,
-                       const Eigen::VectorXd& rhs,
+                       const Eigen::Ref<const Eigen::VectorXd>& rhs,
                        Eigen::Matrix<stan::math::var,Eigen::Dynamic,1>& ret){
   if(lhs.cols()==rhs.size() && rhs.size()>0){
   ret=rhs.coeff(0)*lhs.col(0);

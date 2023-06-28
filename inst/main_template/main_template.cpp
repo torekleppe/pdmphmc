@@ -68,6 +68,9 @@ int main(int argc, char *argv[]){
   // calculate constraint information
   constraintInfo ci;
   bool constrOK = ci.compute<model,metricTensorDummy>(m,q0);
+#ifdef PRINT_CONSTRAINT_INFO
+  std::cout << ci << std::endl;
+#endif
 
   if(!constrOK){
     std::cout << "problem with constraints, exiting" << std::endl;

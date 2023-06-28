@@ -761,6 +761,18 @@ public:
                         const std::string& name = ""){generated(asDouble(value),name); }
 
 
+
+  template <class T>
+  inline void generated(const Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic>& value,
+                        const std::string& name = ""){
+    for(size_t i=0;i<value.rows();i++){
+      for(size_t j=0;j<value.cols();j++){
+        generated(asDouble(value.coeff(i,j)),name+"["+std::to_string(i+1)+","+std::to_string(j+1)+"]");
+      }
+    }
+  }
+
+
   template <class T>
   inline void generated(const SPDmatrix<T>& P,
                         const std::string& name = "SPDmatrix"){
