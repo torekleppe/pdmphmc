@@ -35,6 +35,32 @@
 
 }
 
+
+plugin.compiler.info<- function(flags="-O3"){
+
+  pl <- inline::getPlugin("rstan")
+
+  if(identical(.Platform$OS.type,"windows")){
+    if(pkgbuild::has_rtools()){
+      flags.ext <- paste0(flags,pl$env$PKG_LIBS,pl$env$PKG_CPPFLAGS )
+      return(list(compiler="g++",flags=flags.ext,bld.tools=TRUE))
+    } else {
+      stop("requires a working c++ compiler, get the rtools package for your R version")
+    }
+  } else if(identical(.Platform$OS.type,"unix")) {
+    flags.ext <- paste0(flags,pl$env$PKG_LIBS,pl$env$PKG_CPPFLAGS," -Wno-unknown-pragmas -Wno-deprecated-declarations")
+    return(list(compiler="g++",flags=flags.ext,bld.tools=FALSE))
+  } else {
+    stop("Unknown OS.type")
+  }
+
+}
+
+
+
+
+
+
 .compileCpp <- function(bo,
                         compiler.info=.default.compiler.info(),
                         include=""){
