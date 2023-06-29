@@ -48,7 +48,8 @@ plugin.compiler.info<- function(flags="-O3"){
       stop("requires a working c++ compiler, get the rtools package for your R version")
     }
   } else if(identical(.Platform$OS.type,"unix")) {
-    flags.ext <- paste0(flags,pl$env$PKG_LIBS,pl$env$PKG_CPPFLAGS," -Wno-unknown-pragmas -Wno-deprecated-declarations")
+    #flags.ext <- paste0(flags,pl$env$PKG_LIBS,pl$env$PKG_CPPFLAGS," -Wno-unknown-pragmas -Wno-deprecated-declarations")
+    flags.ext <- paste0(pl$env$PKG_CPPFLAGS," -Wno-unknown-pragmas -Wno-deprecated-declarations")
     return(list(compiler="g++",flags=flags.ext,bld.tools=FALSE))
   } else {
     stop("Unknown OS.type")
