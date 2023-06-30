@@ -34,7 +34,7 @@ build <- function(model.file,
                   amt=process.type=="RMHMCProcess",
                   metric.tensor.type=c("Sparse","Dense"),
                   work.folder=paste0(getwd(),"/pdmphmc_files/"),
-                  compiler.info=.default.compiler.info(),
+                  compiler.info=default.compiler.info(),
                   include="",
                   clean=TRUE){
 
