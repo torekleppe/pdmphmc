@@ -9,8 +9,11 @@ testSystem<-function(include=""){
                                       package = "pdmphmc"),
                model.class.name="model",
                work.folder = paste0(getwd(),"/___testSystemWorkFolder___/"),
-               include=include)
-  fit <- run(mdl,Tmax=1000.0)
+               include=include,
+               step.type = "RKBS32")
+  fit <- run(mdl,Tmax=1000.0,
+             store.pars = c("x"),
+             data=list(dummyDataNotUsed=0L))
   if(max(abs(fit@bin.eflag[[1]]))<0.1){
     message("model ran successfully")
     success <- TRUE
