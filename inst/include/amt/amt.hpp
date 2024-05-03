@@ -39,6 +39,7 @@
 #include "amtExpGamma.hpp"
 #include "amtInvLogitBeta.hpp"
 #include "amtInvLogitUniform.hpp"
+#include "amtNormalMixture.hpp"
 
 // univariate discrete distributions
 #include "amtBernoulli.hpp"

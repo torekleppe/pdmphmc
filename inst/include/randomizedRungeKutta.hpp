@@ -1,9 +1,9 @@
-#ifndef __RUNGEKUTTA_HPP__
-#define __RUNGEKUTTA_HPP__
+#ifndef __RANDOMIZEDRUNGEKUTTANYSTROM_HPP__
+#define __RANDOMIZEDRUNGEKUTTANYSTROM_HPP__
 
 
 /*
- * Quite generic Runge Kutta (Nystrom )Solver
+ * randomized Runge Kutta Nystrom Solver
  *
  */
 
@@ -15,7 +15,7 @@
 template <class _ode_type_,
           template<typename> class _step_type_,
           class _diagnostics_type_>
-class rungeKuttaSolver{
+class randomizedRungeKuttaSolver{
 private:
 
   _ode_type_ *ode_;
@@ -69,15 +69,15 @@ private:
 
   // step size controller
   //double stepErr_;
-  double PI_beta_;
-  double PI_alpha_;
+  //double PI_beta_;
+  //double PI_alpha_;
 
   // diagnostics info
   int id_;
   std::string printPrefix_;
 
-
-  //specialRootSpec sps_;
+  // random number generator
+  rng int_r_;
 
 public:
 
@@ -88,14 +88,16 @@ public:
   // timing
   Eigen::VectorXd CPUtime_;
 
-  rungeKuttaSolver() : dim_(0), maxSteps_(20000), PI_beta_(0.08), PI_alpha_(0.14)  {}
+  randomizedRungeKuttaSolver() : dim_(0), maxSteps_(20000)  {}
   inline int odeOrder() const {return step_.odeOrder();}
-  void seed(const int seed){} // does nothing
+  void seed(const int seed){
+    int_r_.seed(seed);
+  }
   void setup(_ode_type_ &ode){
 
     step_.setup(ode);
-    PI_beta_ = 0.4/step_.errorOrderHigh();
-    PI_alpha_ = 0.7/step_.errorOrderHigh();
+
+
     ode_ = &ode;
 
 
@@ -119,9 +121,6 @@ public:
     std::cout << "generated dimension: " << dimGenerated_ << std::endl;
     std::cout << "eventRoot dimension: " << dimEvent_ << std::endl;
 #endif
-
-      //(*ode_).specialRoots(sps_);
-
 
   }
 
@@ -161,8 +160,6 @@ public:
              const int nsamples){
 
     bool flag;
-    bool stepGood;
-    bool done;
     bool eventContinue = true;
     int nstep = 0;
     int nacc = 0;
@@ -171,9 +168,6 @@ public:
     rootInfo oldRoot;
 
     Eigen::Array<bool,Eigen::Dynamic,1> whichEvent;
-
-    // for PI controller
-    double stepErrOld = 1.0;
 
 
     // assorted storage
@@ -184,7 +178,7 @@ public:
     double nextSampleTime;
     rootInfo rootOut;
     step_.t_right_ = 0.0;
-    done = false;
+
 #ifdef _STORE_EVENT_STATES_
     Eigen::VectorXd EventStateStore(storePars.size());
 #endif
@@ -217,38 +211,42 @@ public:
     CPUtime_.setZero();
 
 
-
+    // simulate step randomness
+    Eigen::VectorXd U_curr = step_.generateU(int_r_);
+    Eigen::VectorXd U_new;
     // main simulation loop
 
     while(nstep <= maxSteps_ && step_.t_right_<Tmax_){ // main time loop
 
-      stepGood = false;
       while(nstep <= maxSteps_){ // step accept/reject loop
         step_.eps_ = std::min(Tmax_-step_.t_left_,step_.eps_); // make last mesh point = Tmax
 #ifdef __DEBUG__
         std::cout << "integrator id : " << id_ << " : before step, eps: "  << step_.eps_ << std::endl;
-       step_.dumpYs();
+        step_.dumpYs();
 #endif
-        flag = step_.step();
+        flag = step_.step(U_curr);
         nstep++;
 #ifdef __DEBUG__
         std::cout << "integrator id: " << id_ << " step err: " << step_.stepErr_  << " eps: "  << step_.eps_ << std::endl;
         std::cout << "flag: " << flag << std::endl;
         step_.dumpYs();
 #endif
+
+
         if(flag){ // no numerical problems
-          if(step_.stepErr_<1.0){ // step accepted
+          if(std::max(step_.stepErr_q_,step_.stepErr_v_)<1.0){ // step accepted
             nacc++;
-            stepGood = true;
             break;
-          } else { // step rejected
-            step_.eps_ *= std::max(0.2,0.9*std::pow(step_.stepErr_,-0.2));
+          } else {
+            step_.newEpsAfterReject();
           }
 
         } else { // numerical problems
           step_.eps_ *= 0.1;
         }
       }
+
+
       //std::cout << t_left_+eps_ << "  " << printCounter << std::endl;
       // print output
       if(id_ < 0.5){ // only print from the main integrator with id=0.0
@@ -275,7 +273,6 @@ public:
       //
       // check if events occurred
       //
-      //if(step_.hasEventRootSolver()){
       rootOut = step_.eventRootSolver(oldRoot);
       oldRoot = rootOut;
 
@@ -284,9 +281,6 @@ public:
       std::cout << rootOut << std::endl;
 #endif
 
-      //} else {
-      //  eventTime = eventGridSearch(whichEventFirst);
-      //}
       // store dense output
       nextSampleTime = static_cast<double>(sample_count_)*sample_interval_;
       if(dimGenerated_>0) genIntLast_.setZero();
@@ -354,7 +348,7 @@ public:
         timeStart = step_.t_left_+rootOut.rootTime_;
         (*diagnostics_).push("timeEnd",timeStart);
         (*diagnostics_).push("eps",step_.eps_);
-        (*diagnostics_).push("stepErr",step_.stepErr_);
+        (*diagnostics_).push("stepErr",std::max(step_.stepErr_q_,step_.stepErr_v_));
         (*diagnostics_).push("nstep",static_cast<double>(nstep));
         (*diagnostics_).push("nacc",static_cast<double>(nacc));
         (*diagnostics_).push("eventType",static_cast<double>(rootOut.rootType_));
@@ -392,16 +386,20 @@ public:
       step_.prepareNext();
 
       //std::cout << "prepare next done" << std::endl;
+      U_new = step_.generateU(int_r_);
+      step_.newEpsAfterAccept(U_new);
+      U_curr = U_new;
+      //step_.eps_ *= std::min(5.0,std::max(0.2,0.95*std::pow(step_.stepErr_,-PI_alpha_)*std::pow(stepErrOld,PI_beta_)));
+      //stepErrOld = step_.stepErr_;
 
 
-      step_.eps_ *= std::min(5.0,std::max(0.2,0.95*std::pow(step_.stepErr_,-PI_alpha_)*std::pow(stepErrOld,PI_beta_)));
-      stepErrOld = step_.stepErr_;
+
     } // main time loop
 
     if(step_.t_right_<Tmax_){
       std::cout << "integrator failed, possibly increase maxSteps_ ?" << std::endl;
       std::cout << "nstep : " << nstep << "maxSteps_ : " << maxSteps_ << std::endl;
-      std::cout << "integrator id: " << id_ << " step err: " << step_.stepErr_  << " eps: "  << step_.eps_ << std::endl;
+      std::cout << "integrator id: " << id_ << " step err: " << std::max(step_.stepErr_q_,step_.stepErr_v_) << " eps: "  << step_.eps_ << std::endl;
 #ifdef __DEBUG__
       std::exit(0);
 #endif
@@ -413,7 +411,7 @@ public:
     (*diagnostics_).push("timeStart",timeStart);
     (*diagnostics_).push("timeEnd",step_.t_right_);
     (*diagnostics_).push("eps",step_.eps_);
-    (*diagnostics_).push("stepErr",step_.stepErr_);
+    (*diagnostics_).push("stepErr",std::max(step_.stepErr_q_,step_.stepErr_v_));
     (*diagnostics_).push("nstep",static_cast<double>(nstep));
     (*diagnostics_).push("nacc",static_cast<double>(nacc));
     (*diagnostics_).push("eventType",static_cast<double>(rootOut.rootType_));
@@ -431,6 +429,7 @@ public:
     std::chrono::duration<double> end_elapsed = endTime-start_time;
     CPUtime_(2) = end_elapsed.count();
     CPUtime_(1) = CPUtime_(2)-CPUtime_(0);
+
 
     return(step_.t_right_);
   } // run

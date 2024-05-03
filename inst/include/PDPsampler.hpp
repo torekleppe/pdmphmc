@@ -52,7 +52,10 @@ public:
 
   inline int getDim() const {return proc_.dim();}
 
-  inline void seed(const int seed){proc_.seed(seed);}
+  inline void seed(const int seed){
+    proc_.seed(seed);
+    int_.seed(seed);
+  }
 
   void setPrintPrefix(const std::string prefix){
     printPrefix_ = prefix;
@@ -108,6 +111,9 @@ public:
         std::cout << "bad number of parameters to lambda, should be " <<
           proc_.lambda_.numPars()<< ", ignored! "<< std::endl;
       }
+      break;
+    case 7:
+      int_.setFixedEps(val(0));
       break;
     default :
       std::cout << "setProperty: no property/not writeable : " << which << std::endl;

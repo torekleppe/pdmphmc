@@ -47,6 +47,8 @@ public:
   int generatedDim(){ return 0;}
   int eventRootDim(){return (*proc_).eventRootDim();}
 
+  secondOrderRep secondOrderRepresentation() const {return (*proc_).secondOrderRepresentation();}
+
   void setQLastEvent(const Eigen::VectorXd &q){q_last_event_=q;}
 
   void ode(const double time,
@@ -381,6 +383,20 @@ public:
 
   inline int systemDim() const {return dim_;}
   inline int generatedDim() const {return dimGen_;}
+
+  secondOrderRep secondOrderRepresentation() const {
+    secondOrderRep ret;
+    ret.pos_first_ = 0;
+    ret.pos_last_ = dim_-1;
+    ret.vel_first_ = dim_;
+    ret.vel_last_ = 2*dim_-1;
+    ret.int_first_ = 2*dim_;
+    ret.int_last_ = 2*dim_;
+    ret.nonTrivial_ = true;
+    ret.hasInt_ = true;
+    return ret;
+  }
+
 
   // evaluate target
 

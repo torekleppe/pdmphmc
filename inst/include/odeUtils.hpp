@@ -104,6 +104,37 @@ public:
   }
 };
 
+/*
+ * Structure for communicating that an ODE system has second order structure,
+ * and how to find this structure from the system of first order ODEs. Only used the Nystrom methods.
+ * Intended to replace facilities of the odeState struct above
+ */
+
+
+struct secondOrderRep{
+  std::size_t pos_first_;
+  std::size_t pos_last_;
+  std::size_t vel_first_;
+  std::size_t vel_last_;
+  std::size_t int_first_;
+  std::size_t int_last_;
+  bool nonTrivial_;
+  bool hasInt_;
+  secondOrderRep() : nonTrivial_(false), hasInt_(false) {}
+  void dump() const {
+    if(nonTrivial_){
+      std::cout << "ODE system position in range : " << pos_first_ << " : " << pos_last_ << std::endl;
+      std::cout << "ODE system velocity in range : " << vel_first_ << " : " << vel_last_ << std::endl;
+      if(hasInt_){
+        std::cout << "ODE system integrated quantities : " << int_first_ << " : " << int_last_ << std::endl;
+      } else {
+        std::cout << "ODE system has no integrated quantities" << std::endl;
+      }
+    } else {
+      std::cout << "ODE system has no second order representation" << std::endl;
+    }
+  }
+};
 
 
 #endif

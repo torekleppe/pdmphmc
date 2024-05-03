@@ -90,7 +90,7 @@ int main(int argc, char *argv[]){
   PDPsampler<ProcessType__,
              modelSpec__,
              varType,
-             rungeKuttaSolver,
+             ODESolverType__,
              RKstepType__,
              metricTensorType__,
              TMType__,
@@ -171,6 +171,8 @@ int main(int argc, char *argv[]){
   if(ctrl.getNumeric("relTol",tmp_d) && tmp_d.size()==1) sampler.setProperty("relTol",tmp_d);
 
   if(ctrl.getNumeric("lambda",tmp_d)) sampler.setProperty("lambda",tmp_d);
+
+  if(ctrl.getNumeric("fixedEps",tmp_d)) sampler.setProperty("fixedEps",tmp_d);
 
   /*--------------------------------------------------------------------
    *  work out initial configuration

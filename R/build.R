@@ -11,6 +11,15 @@
            file.exists(paste0(build.object@file.name.base,".exe")))
 }
 
+.get.solver.type <- function(step.type){
+  return(switch(step.type,
+         RKDP54="rungeKuttaSolver",
+         RKBS32="rungeKuttaSolver",
+         RRKN32="randomizedRungeKuttaSolver",
+         RRKN21="randomizedRungeKuttaSolver"))
+}
+
+
 #' Build (i.e. parse and compile) a pdmphmc model
 #'
 #'
@@ -29,7 +38,7 @@
 build <- function(model.file,
                   model.class.name="model",
                   process.type=c("HMCProcessConstr","HMCProcess","RMHMCProcess"),
-                  step.type=c("RKDP54","RKBS32"),
+                  step.type=c("RKDP54","RKBS32","RRKN32","RRKN21"),
                   TM.type=c("diagLinearTM_VARI","diagLinearTM_ISG","identityTM"),
                   amt=process.type=="RMHMCProcess",
                   metric.tensor.type=c("Sparse","Dense"),
@@ -73,7 +82,11 @@ build <- function(model.file,
 
   step.type <- match.arg(step.type)
   header <- paste0(header," #define RKstepType__ ",step.type," \n")
-  message("Runge Kutta step type : ",step.type)
+  message("step type : ",step.type)
+
+  ode.solver <- .get.solver.type(step.type)
+  header <- paste0(header," #define ODESolverType__ ",ode.solver," \n")
+  message("ODE solver type : ",ode.solver)
 
   TM.type <- match.arg(TM.type)
   header <- paste0(header," #define TMType__ ",TM.type," \n")

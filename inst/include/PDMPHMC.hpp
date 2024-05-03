@@ -87,7 +87,11 @@
 #include "RKDP54.hpp"
 #include "RKNDP64.hpp"
 #include "RKBS32.hpp"
+#include "RRKN32.hpp"
+#include "RRKN21.hpp"
 #include "RungeKutta.hpp"
+#include "randomizedRungeKutta.hpp"
+
 
 
 #include "metricTensorSymbolic.hpp"
@@ -112,6 +116,9 @@
 
 #include "PDPsampler.hpp"
 #include "initialPointSolver.hpp"
+
+
+#include "RHMCfixedTimeStep.hpp"
 
 #include "FMVAD/FMVAD.hpp"
 #include "FMVAD/FMVAD_spec_funs.hpp"

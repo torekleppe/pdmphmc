@@ -12,7 +12,8 @@ class propertyTable{
     "massallowsFixedSubvector", //3
     "massFixedMiSubvector", //4
     "CPUtime", //5
-    "lambda" // 4
+    "lambda", // 6
+    "fixedEps" // 7
   };
 public:
   propertyTable(){}

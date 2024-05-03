@@ -1,3 +1,9 @@
+.pdmphmc_valid_control_fields <- c("absTol",
+                                   "relTol",
+                                   "csvPrec",
+                                   "lambda",
+                                   "bash.parallel",
+                                   "fixedEps")
 
 .pdmphmc_default_control <- function(){
   return(list(absTol=1.0e-4,
@@ -16,12 +22,15 @@ pdmphmc_control <-function(...){
 
   if(length(arg.list)>0){
     nms <- names(arg.list)
-    print(nms)
     for(i in 1:length(arg.list)){
       in.ctrl <- ctrl.nms==nms[i]
       if(any(in.ctrl)){
         j <- which(in.ctrl)[1]
         ctrl[[j]] <- arg.list[[i]]
+      } else if(any(.pdmphmc_valid_control_fields==nms[i])){
+        ctrl <- c(ctrl,arg.list)
+        names(ctrl)[length(ctrl)] <- nms[i]
+
       } else if(nms[i]==""){
         message(paste0("pdmphmc_control : unnamed argument with value ",arg.list[[i]]," ignored"))
       } else {
