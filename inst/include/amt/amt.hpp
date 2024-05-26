@@ -21,6 +21,7 @@
 // specialized data types
 #include "amtSPDmatrix.hpp"
 #include "amtTriDiagChol.hpp"
+#include "amtChol.hpp"
 
 // preconditioning
 #include "amtPreCond.hpp"
