@@ -76,6 +76,8 @@ class amtModel{
 
   Eigen::Matrix<stan::math::var,Eigen::Dynamic,1> nonLinConstr_;
 
+  std::size_t eventCount_;
+
   inline void reset(){
     if constexpr (storeNames){
       parNames_.clear();
@@ -93,6 +95,7 @@ class amtModel{
     splinL2ConstrCount_ = 0;
     splinFConstrCount_ = 0;
     nonLinConstrCount_ = 0;
+    eventCount_ = 0;
   }
   void expandParNames(){
     epn_.clear();
@@ -138,8 +141,8 @@ public:
   std::vector<std::string> egn_;
 
 
-  amtModel() :  parCount_(0), tenPtr_(NULL), target_(0.0), generatedCount_(0), emptyNameCount_(0), linConstrCount_(0), splinConstrCount_(0), splinL1ConstrCount_(0), splinL2ConstrCount_(0), splinFConstrCount_(0), nonLinConstrCount_(0) {}
-  amtModel(tensorType& tensor) : parCount_(0), tenPtr_(&tensor), target_(0.0), generatedCount_(0), emptyNameCount_(0), linConstrCount_(0), splinConstrCount_(0), splinL1ConstrCount_(0), splinL2ConstrCount_(0), splinFConstrCount_(0), nonLinConstrCount_(0) {}
+  amtModel() :  parCount_(0), tenPtr_(NULL), target_(0.0), generatedCount_(0), emptyNameCount_(0), linConstrCount_(0), splinConstrCount_(0), splinL1ConstrCount_(0), splinL2ConstrCount_(0), splinFConstrCount_(0), nonLinConstrCount_(0), eventCount_(0) {}
+  amtModel(tensorType& tensor) : parCount_(0), tenPtr_(&tensor), target_(0.0), generatedCount_(0), emptyNameCount_(0), linConstrCount_(0), splinConstrCount_(0), splinL1ConstrCount_(0), splinL2ConstrCount_(0), splinFConstrCount_(0), nonLinConstrCount_(0), eventCount_(0) {}
 
   inline size_t dim() const {return parCount_;}
   inline size_t dimGen() const {return generatedCount_;}
@@ -154,7 +157,7 @@ public:
     expandGeneratedNames();
   }
   //inline constraintInfo constrInfo() const {return constraintInfo(nonLinConstrCount_,linConstrCount_);}
-
+  inline void incrementEventCount(){ eventCount_++;}
 
   std::vector<std::string> storeColNames(const Eigen::VectorXi& storePars){
     std::vector<std::string> ret;

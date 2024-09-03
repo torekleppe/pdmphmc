@@ -418,7 +418,7 @@ public:
       newState.y(2*dim_) = 0.0; // reset integrated lambda
       u_ = -log(r_.runif()); // simulate new exp(1) variable
 
-
+      mdl_.incrementEventCount();
 
 
     } else if(EventType==1){ // NUT before PDP event

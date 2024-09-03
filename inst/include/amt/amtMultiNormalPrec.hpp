@@ -211,7 +211,23 @@ public:
   }
 };
 
-
+template <>
+class multi_normal_prec_ld<double,amtVar,amtVar>{
+  const Eigen::Matrix<amtVar,Eigen::Dynamic,1>* muPtr_;
+  const SPDmatrix<amtVar>* Pptr_;
+  const stan::math::var lpdf_;
+public:
+  multi_normal_prec_ld(const Eigen::Matrix<double,Eigen::Dynamic,1>& arg,
+                       const Eigen::Matrix<amtVar,Eigen::Dynamic,1>& mu,
+                       const SPDmatrix<amtVar>& Prec) : muPtr_(&mu), Pptr_(&Prec),
+                       lpdf_(multi_normal_prec_lpdf_StanVal<double,amtVar,amtVar>(arg,mu,Prec)) {}
+  template <class tenPtrType>
+  inline stan::math::var operator()(tenPtrType tensor) const{
+    multi_normal_argORmuFI(muPtr_,Pptr_,tensor);
+    multi_normal_precisionFI(Pptr_,tensor);
+    return(lpdf_);
+  }
+};
 
 
 template <>

@@ -600,7 +600,7 @@ public:
 
         q_last_event_ = newState.y.head(dim_);
 
-
+        mdl_.incrementEventCount();
 
       } else if(EventType==1){ // NUT before PDP event
 

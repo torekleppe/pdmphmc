@@ -18,10 +18,14 @@
 
 //#include "amtLpdfReturnTypes.hpp"
 #include "amtCommonNameSpace.hpp"
+
 // specialized data types
 #include "amtSPDmatrix.hpp"
 #include "amtTriDiagChol.hpp"
+
+// basic dense cholesky
 #include "amtChol.hpp"
+
 
 // preconditioning
 #include "amtPreCond.hpp"
